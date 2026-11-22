@@ -5502,6 +5502,344 @@ maybeRun();
   }
 })();
 </script>
+<script id="ivpManualLogoutSecurityPackWithFallback">
+(function () {
+  // ===== 1. 5-HOUR INACTIVITY AUTO-LOGOUT =====
+  const IDLE_LIMIT_MS = 5 * 60 * 60 * 1000; // 5 hours
+  const LAST_ACTIVE_KEY = "ivp_last_active_ts_v1";
+  let lastActive = Date.now();
+
+  function ensureLockOverlay() {
+    let overlay = document.getElementById("authOverlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "authOverlay";
+      overlay.style.cssText =
+        "position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.72);backdrop-filter:blur(4px);";
+      overlay.innerHTML = `
+        <div style="width:min(420px,100%);background:var(--surface,#fff);color:var(--ink,#0f172a);border:1px solid var(--rule,#cbd5e1);border-radius:16px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,.35);">
+          <h3 style="margin:0 0 6px;">Session Locked / Login</h3>
+          <p style="margin:0 0 12px;font-size:.84rem;color:var(--ink-2,#475569);">Please sign in again to continue.</p>
+          <div id="authAlert" class="auth-alert warn" style="margin-bottom:10px;" hidden></div>
+          <form id="authForm" autocomplete="off" style="display:grid;gap:8px;">
+            <input id="authUser" type="text" placeholder="User ID / Username" style="padding:8px 10px;border:1px solid var(--rule-strong,#94a3b8);border-radius:8px;">
+            <input id="authPass" type="password" placeholder="Password" style="padding:8px 10px;border:1px solid var(--rule-strong,#94a3b8);border-radius:8px;">
+            <button type="submit" class="btn" id="authSubmitBtn">Sign In</button>
+          </form>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    return overlay;
+  }
+
+  function ensureAdminDialog() {
+    let dlg = document.getElementById("adminDialog");
+    if (!dlg) {
+      dlg = document.createElement("dialog");
+      dlg.id = "adminDialog";
+      dlg.innerHTML = `
+        <div class="md-box">
+          <div class="md-head">
+            <h2>Admin Security Panel</h2>
+            <button type="button" class="btn quiet sm" id="admCloseFallback">Close</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(dlg);
+      dlg.querySelector("#admCloseFallback").addEventListener("click", () => dlg.close());
+    }
+    return dlg;
+  }
+
+  function triggerAutoLogout(msg) {
+    try {
+      sessionStorage.removeItem("ivp_auth_session_v14");
+      sessionStorage.removeItem("ivp_auth_session_v13");
+    } catch (e) {}
+    document.body.classList.add("auth-locked");
+    const overlay = ensureLockOverlay();
+    overlay.hidden = false;
+    const alertBox = document.getElementById("authAlert");
+    if (alertBox) {
+      alertBox.className = "auth-alert warn";
+      alertBox.textContent = msg || "5 hours tak koi activity nahi hui, isliye session auto-logout ho gaya.";
+      alertBox.hidden = false;
+    }
+  }
+
+  function touchActivity() {
+    lastActive = Date.now();
+    try {
+      localStorage.setItem(LAST_ACTIVE_KEY, String(lastActive));
+    } catch (e) {}
+  }
+
+  ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"].forEach((ev) => {
+    window.addEventListener(ev, touchActivity, { passive: true });
+  });
+
+  setInterval(() => {
+    if (document.body.classList.contains("auth-locked")) return;
+    let storedTs = lastActive;
+    try {
+      storedTs = parseInt(localStorage.getItem(LAST_ACTIVE_KEY) || String(lastActive), 10) || lastActive;
+    } catch (e) {}
+    if (Date.now() - Math.max(lastActive, storedTs) >= IDLE_LIMIT_MS) {
+      triggerAutoLogout("5 hours se koi activity nahi thi, isliye auto-logout ho gaya.");
+    }
+  }, 30000);
+
+  // ===== 2. SINGLE-LOGIN TAKEOVER (SAME ID ON ANOTHER DEVICE/TAB) =====
+  const TAB_SESSION_ID = "tab_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  const ACTIVE_LOGIN_MAP_KEY = "ivp_active_user_sessions_v1";
+
+  function getActiveUserId() {
+    const userInput = document.getElementById("authUser");
+    const badge = document.getElementById("authUserBadge");
+    if (badge && !badge.hidden && badge.textContent) {
+      const match = badge.textContent.trim().match(/^[^\s]+\s+([^\s]+)/);
+      if (match && match[1]) return match[1].toLowerCase();
+    }
+    if (userInput && userInput.value.trim()) return userInput.value.trim().toLowerCase();
+    return "";
+  }
+
+  function readSessionMap() {
+    try { return JSON.parse(localStorage.getItem(ACTIVE_LOGIN_MAP_KEY) || "{}"); } catch (e) { return {}; }
+  }
+  function writeSessionMap(map) {
+    try { localStorage.setItem(ACTIVE_LOGIN_MAP_KEY, JSON.stringify(map)); } catch (e) {}
+  }
+
+  function claimCurrentUserSession() {
+    const uid = getActiveUserId();
+    if (!uid || document.body.classList.contains("auth-locked")) return;
+    const map = readSessionMap();
+    map[uid] = { sessionId: TAB_SESSION_ID, updatedAt: Date.now() };
+    writeSessionMap(map);
+  }
+
+  window.addEventListener("storage", (e) => {
+    if (e.key !== ACTIVE_LOGIN_MAP_KEY || document.body.classList.contains("auth-locked")) return;
+    const uid = getActiveUserId();
+    if (!uid) return;
+    const map = readSessionMap();
+    const entry = map[uid];
+    if (entry && entry.sessionId && entry.sessionId !== TAB_SESSION_ID) {
+      triggerAutoLogout("Is User ID se kisi doosri jagah login hua hai, isliye yahan se logout kar diya gaya.");
+    }
+  });
+
+  setInterval(claimCurrentUserSession, 5000);
+
+  // ===== 3. USER ID/PASSWORD CHANGE REQUEST + ADMIN APPROVAL & VAULT =====
+  const CRED_REQ_KEY = "ivp_cred_change_requests_v1";
+  const CRED_VAULT_KEY = "ivp_admin_cred_vault_v1";
+  const VAULT_PIN_HASH_KEY = "ivp_vault_pin_hash_v1";
+
+  function simpleHash(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
+
+  function getRequests() {
+    try { return JSON.parse(localStorage.getItem(CRED_REQ_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveRequests(list) {
+    try { localStorage.setItem(CRED_REQ_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+  function getVault() {
+    try { return JSON.parse(localStorage.getItem(CRED_VAULT_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveVault(list) {
+    try { localStorage.setItem(CRED_VAULT_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  function mountSecurityPanels() {
+    ensureLockOverlay();
+    ensureAdminDialog();
+
+    const authForm = document.getElementById("authForm");
+    if (authForm && !document.getElementById("userChangeReqBox")) {
+      const box = document.createElement("div");
+      box.id = "userChangeReqBox";
+      box.style.cssText = "margin-top:10px;padding:10px 12px;border:1px solid var(--rule,#cbd5e1);border-radius:10px;background:var(--sunken,#f8fafc);font-size:.82rem;";
+      box.innerHTML = `
+        <div style="font-weight:700;margin-bottom:6px;">Request ID / Password Change (Admin Approval Needed)</div>
+        <div style="display:grid;gap:6px;">
+          <input id="reqCurUser" placeholder="Current User ID" style="padding:6px 8px;border:1px solid var(--rule-strong,#94a3b8);border-radius:7px;">
+          <input id="reqNewUser" placeholder="New User ID (optional)" style="padding:6px 8px;border:1px solid var(--rule-strong,#94a3b8);border-radius:7px;">
+          <input id="reqNewPass" type="password" placeholder="New Password" style="padding:6px 8px;border:1px solid var(--rule-strong,#94a3b8);border-radius:7px;">
+          <button type="button" class="btn secondary sm" id="submitCredReqBtn">Send Change Request</button>
+          <div id="credReqStatus" style="color:var(--accent-ink,#0f766e);font-weight:600;"></div>
+        </div>
+      `;
+      authForm.appendChild(box);
+
+      document.getElementById("submitCredReqBtn").addEventListener("click", () => {
+        const currentId = (document.getElementById("reqCurUser").value || "").trim();
+        const requestedId = (document.getElementById("reqNewUser").value || currentId).trim();
+        const requestedPass = document.getElementById("reqNewPass").value || "";
+        const st = document.getElementById("credReqStatus");
+        if (!currentId || !requestedPass) {
+          st.style.color = "var(--bad,#dc2626)";
+          st.textContent = "Current User ID aur New Password dono bharein.";
+          return;
+        }
+        const reqs = getRequests();
+        reqs.push({
+          id: "req_" + Date.now().toString(36),
+          currentId,
+          requestedId,
+          requestedPass,
+          status: "PENDING",
+          createdAt: new Date().toISOString()
+        });
+        saveRequests(reqs);
+        st.style.color = "var(--ok,#059669)";
+        st.textContent = "Request bhej di gayi hai. Admin ke approve karne ke baad apply hogi.";
+        document.getElementById("reqNewPass").value = "";
+      });
+    }
+
+    const admBox = document.querySelector("#adminDialog .md-box");
+    if (admBox && !document.getElementById("adminSecVaultPanel")) {
+      const panel = document.createElement("div");
+      panel.id = "adminSecVaultPanel";
+      panel.style.cssText = "margin-top:12px;padding:12px 14px;border:1px solid var(--rule-strong,#94a3b8);border-radius:12px;background:var(--sunken,#f8fafc);display:grid;gap:12px;";
+      panel.innerHTML = `
+        <div>
+          <div style="font-weight:700;margin-bottom:6px;">🔐 Protected ID &amp; Password Vault (Unlock Required to View)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <input id="vaultMasterPin" type="password" placeholder="Enter Vault PIN / Password" style="padding:6px 10px;border:1px solid var(--rule-strong,#94a3b8);border-radius:8px;">
+            <button type="button" class="btn secondary sm" id="vaultUnlockBtn">Unlock Vault</button>
+            <button type="button" class="btn quiet sm" id="vaultSetPinBtn">Set / Change Vault PIN</button>
+            <span id="vaultPinMsg" style="font-size:.8rem;font-weight:600;"></span>
+          </div>
+          <div id="vaultRecordsList" style="margin-top:8px;font-size:.82rem;" hidden></div>
+        </div>
+        <div>
+          <div style="font-weight:700;margin-bottom:6px;">📩 Pending User ID / Password Change Requests</div>
+          <div id="credRequestsList" style="font-size:.82rem;"></div>
+        </div>
+      `;
+      admBox.appendChild(panel);
+
+      document.getElementById("vaultSetPinBtn").addEventListener("click", () => {
+        const pin = document.getElementById("vaultMasterPin").value || "";
+        const msg = document.getElementById("vaultPinMsg");
+        if (pin.length < 4) {
+          msg.style.color = "var(--bad,#dc2626)";
+          msg.textContent = "Kam se kam 4 character ka PIN daalein.";
+          return;
+        }
+        localStorage.setItem(VAULT_PIN_HASH_KEY, simpleHash(pin));
+        msg.style.color = "var(--ok,#059669)";
+        msg.textContent = "Vault PIN set ho gaya.";
+      });
+
+      document.getElementById("vaultUnlockBtn").addEventListener("click", () => {
+        const pin = document.getElementById("vaultMasterPin").value || "";
+        const savedHash = localStorage.getItem(VAULT_PIN_HASH_KEY);
+        const msg = document.getElementById("vaultPinMsg");
+        const listEl = document.getElementById("vaultRecordsList");
+        if (!savedHash) {
+          msg.style.color = "var(--warn,#b45309)";
+          msg.textContent = "Pehle PIN daal kar 'Set / Change Vault PIN' dabayein.";
+          return;
+        }
+        if (simpleHash(pin) !== savedHash) {
+          msg.style.color = "var(--bad,#dc2626)";
+          msg.textContent = "Galat Vault PIN!";
+          listEl.hidden = true;
+          return;
+        }
+        msg.style.color = "var(--ok,#059669)";
+        msg.textContent = "Vault unlocked.";
+        const vault = getVault();
+        listEl.hidden = false;
+        listEl.innerHTML = vault.length
+          ? vault.map((v) => `<div>• User ID: <b>${v.userId}</b> | Password: <b>${v.password}</b></div>`).join("")
+          : "Abhi koi stored credential entry nahi hai.";
+      });
+
+      renderApprovalList();
+    }
+  }
+
+  function renderApprovalList() {
+    const wrap = document.getElementById("credRequestsList");
+    if (!wrap) return;
+    const reqs = getRequests();
+    if (!reqs.length) {
+      wrap.textContent = "Koi change request nahi hai.";
+      return;
+    }
+    wrap.innerHTML = reqs.map((r, idx) => `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--rule,#e2e8f0);">
+        <span><b>${r.currentId}</b> → New ID: <b>${r.requestedId}</b> | Status: <b>${r.status}</b></span>
+        ${r.status === "PENDING"
+          ? `<button type="button" class="btn sm" data-approve-req="${idx}">Approve</button>
+             <button type="button" class="btn quiet sm" data-reject-req="${idx}">Reject</button>`
+          : ""}
+      </div>
+    `).join("");
+
+    wrap.querySelectorAll("[data-approve-req]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = parseInt(btn.dataset.approveReq, 10);
+        const list = getRequests();
+        const item = list[i];
+        if (!item) return;
+        item.status = "APPROVED";
+        saveRequests(list);
+
+        const vault = getVault();
+        const existingIdx = vault.findIndex((x) => x.userId.toLowerCase() === item.currentId.toLowerCase());
+        const updatedEntry = { userId: item.requestedId, password: item.requestedPass, updatedAt: Date.now() };
+        if (existingIdx >= 0) vault[existingIdx] = updatedEntry;
+        else vault.push(updatedEntry);
+        saveVault(vault);
+
+        ["ivp_auth_cfg_v13", "ivp_auth_cache_v14"].forEach((k) => {
+          try {
+            const cfg = JSON.parse(localStorage.getItem(k) || "null");
+            if (cfg && Array.isArray(cfg.users)) {
+              const target = cfg.users.find((u) => String(u.username || "").toLowerCase() === item.currentId.toLowerCase());
+              if (target) {
+                target.username = item.requestedId;
+                target.plainPassForAdmin = item.requestedPass;
+              }
+              localStorage.setItem(k, JSON.stringify(cfg));
+            }
+          } catch (e) {}
+        });
+
+        renderApprovalList();
+      });
+    });
+
+    wrap.querySelectorAll("[data-reject-req]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = parseInt(btn.dataset.rejectReq, 10);
+        const list = getRequests();
+        if (!list[i]) return;
+        list[i].status = "REJECTED";
+        saveRequests(list);
+        renderApprovalList();
+      });
+    });
+  }
+
+  mountSecurityPanels();
+  setInterval(mountSecurityPanels, 2000);
+})();
+</script>
 
 </body>
 </html>
