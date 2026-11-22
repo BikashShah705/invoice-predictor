@@ -924,6 +924,116 @@ body.auth-locked .ug-footer { display: none !important; }
 .cloud-master-acts { display: flex; gap: 8px; align-items: center; }
 .lg-by { font-size: .76rem; color: var(--ink-3); white-space: nowrap; }
 
+
+/* ===== UPGRADE #2: BULK / BATCH PO & DC PROCESSING ===== */
+#bulkModeBtn.active-bulk {
+  background: linear-gradient(135deg, #0d9488, #0284c7) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+#bulkPanel {
+  margin-top: 18px;
+  background: var(--surface);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 20px 24px 24px;
+  box-shadow: var(--sh);
+}
+.bulk-head {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--rule);
+}
+.bulk-head h2 { margin: 0; font-size: 1.2rem; color: var(--ink); }
+.bulk-head p { margin: 3px 0 0; font-size: .84rem; color: var(--ink-2); }
+.bulk-drop-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;
+  margin-top: 16px;
+}
+.bulk-drop-box {
+  position: relative; border: 1.5px dashed var(--rule-strong); border-radius: 14px;
+  padding: 16px; background: var(--sunken); cursor: pointer; transition: all .15s;
+}
+.bulk-drop-box:hover, .bulk-drop-box.drag {
+  border-color: var(--accent); background: var(--accent-soft);
+}
+.bulk-drop-box input[type="file"] {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
+}
+.bulk-drop-title { font-weight: 700; font-size: .92rem; color: var(--ink); display: flex; justify-content: space-between; }
+.bulk-drop-sub { font-size: .8rem; color: var(--ink-3); margin-top: 4px; }
+.bulk-file-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; position: relative; z-index: 2; }
+.bulk-fpill {
+  font-size: .74rem; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+  background: var(--surface-solid); border: 1px solid var(--rule-strong); color: var(--ink-2);
+}
+.bulk-actions-bar {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
+}
+.bulk-sum-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.bulk-sum-badges span {
+  font-size: .82rem; font-weight: 700; padding: 4px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink);
+}
+.bulk-table-wrap { margin-top: 14px; max-height: 55vh; overflow: auto; border: 1px solid var(--rule); border-radius: 12px; }
+
+
+/* ===== UPGRADE #3: 3-WAY RECONCILIATION (PO vs DC vs TAX INVOICE) ===== */
+.inv3-card {
+  margin: 0 28px 16px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--sunken);
+  border: 1.5px solid var(--rule-strong);
+  display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between;
+}
+@media (max-width:860px){ .inv3-card { margin: 0 16px 14px; } }
+.inv3-card.match { background: var(--ok-soft); border-color: var(--ok); }
+.inv3-card.mismatch { background: var(--bad-soft); border-color: var(--bad); }
+.inv3-metrics { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; }
+.inv3-m small { display: block; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
+.inv3-m b { font-size: 1.15rem; color: var(--ink); }
+
+/* ===== UPGRADE #4: INSTALLABLE PWA APP BUTTON ===== */
+#pwaInstallBtn {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  color: #fff !important;
+  border-color: rgba(255,255,255,.4) !important;
+  font-weight: 700;
+}
+
+/* ===== UPGRADE #5 & #6: EXPIRY WARNINGS + MARKETPLACE ANALYTICS & GOOGLE SHEETS PUSH ===== */
+.expiry-banner {
+  margin: 0 28px 14px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  background: var(--bad-soft);
+  color: var(--bad-ink);
+  border: 1.5px solid var(--bad);
+  font-size: .88rem;
+  font-weight: 600;
+  display: flex; align-items: center; gap: 10px;
+}
+.expiry-banner.soon { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+@media (max-width:860px){ .expiry-banner { margin: 0 16px 12px; } }
+
+.mp-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px;
+  margin-top: 14px;
+}
+.mp-card {
+  background: var(--surface-solid); border: 1px solid var(--rule); border-radius: 14px; padding: 14px 16px;
+}
+.mp-card h4 { margin: 0 0 10px; font-size: .82rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
+.mp-row {
+  display: grid; grid-template-columns: 95px 1fr auto auto; gap: 8px; align-items: center;
+  font-size: .8rem; padding: 5px 0; border-bottom: 1px dashed var(--rule);
+}
+.mp-row:last-child { border-bottom: 0; }
+.mp-bar { height: 8px; border-radius: 99px; background: var(--rule); overflow: hidden; }
+.mp-bar u { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
 </style>
 </head>
 <body class="auth-locked">
@@ -964,6 +1074,7 @@ body.auth-locked .ug-footer { display: none !important; }
   <div class="topbar-in">
     <h1><span class="ug-brand-lockup"><span class="ug-logo-mark"><svg viewBox="0 0 64 58" fill="none" aria-hidden="true"><path d="M29 52C26 42 14 39 10 29C7.5 23 11 18 15.5 21C19 23.5 21 29 24 34C22 24 15 15 18 8.5C20.5 3.5 26 5 27.5 11C28.8 16 28.5 23 29.5 29C31 19 32 7 37.5 5C42.5 3.2 46 8 43.5 14.5C41.2 20.5 36.5 26 34 32C39 26 46.5 17.5 52.5 19.5C57.5 21.2 56.5 27.5 51.5 31.5C45.5 36.2 38 39 34 45C32.8 47.5 31.8 50.5 30.8 53C30.2 54.5 29.4 53.5 29 52Z" fill="currentColor"/></svg></span><span class="ug-brand-word"><span class="ug-brand-name">ugaoo</span><span class="ug-brand-sub">plants grow people</span></span><span class="ug-brand-sep" aria-hidden="true"></span><span class="ug-tool-title"><span>Invoice Value Predictor</span><small>PO vs DC Analytics Suite</small></span></span></h1>
     <p>PO/DC files stay in your browser · Access &amp; activity synced live.</p>
+    <button type="button" class="btn" id="pwaInstallBtn" hidden title="Install Ugaoo App on Desktop or Mobile">📲 Install App</button>
     <button type="button" class="btn secondary" id="openLog">Record Log (<span id="logCount">0</span>)</button>
   </div>
 </header>
@@ -1018,6 +1129,13 @@ body.auth-locked .ug-footer { display: none !important; }
       <input type="file" id="dcFile" accept=".pdf">
     </label>
 
+    <label class="slot" id="slot-inv" data-state="empty" title="Optional 3-Way Check: Actual Billed Tax Invoice PDF">
+      <span class="slot-head"><span class="slot-name"><span class="slot-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14l2 2 4-4"/><rect x="4" y="2" width="16" height="20" rx="2"/></svg></span>Tax Invoice (3-Way)</span><span class="slot-badge">Optional</span></span>
+      <span class="slot-main">Drop Actual Tax Invoice PDF here</span>
+      <span class="slot-sub">Compares Predicted vs Actual Billed Invoice</span>
+      <input type="file" id="invFile" accept=".pdf">
+    </label>
+
     <button type="button" class="btn quiet" id="resetBtn" hidden>Clear PO and DC</button>
   </aside>
 
@@ -1025,7 +1143,7 @@ body.auth-locked .ug-footer { display: none !important; }
     <div class="sr-only" id="live" aria-live="polite"></div>
 
     <section class="empty" id="empty">
-      <h2>Add the master sheet, a PO and its DC</h2>
+      <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><h2 style="margin:0">Add the master sheet, a PO and its DC</h2><button type="button" class="btn secondary sm" id="bulkModeBtnEmpty">📦 Bulk Batch Mode (Multiple POs + DCs)</button></div>
       <p>The predicted invoice value appears here as soon as all three are loaded.</p>
       <p class="needs" id="needs"></p>
       <dl class="supported">
@@ -1053,6 +1171,8 @@ body.auth-locked .ug-footer { display: none !important; }
         <div class="totals" id="totals"></div>
       </div>
 
+      <div class="expiry-banner" id="poExpiryAlert" hidden></div>
+      <div class="inv3-card" id="inv3Card" hidden></div>
       <div class="banner" id="banner"></div>
 
       <div class="autobox" id="autoBox" hidden></div>
@@ -1075,6 +1195,8 @@ body.auth-locked .ug-footer { display: none !important; }
           <input type="search" id="search" placeholder="Search EAN, SKU or item" aria-label="Search lines">
         </div>
         <div class="actions">
+          <button type="button" class="btn secondary" id="bulkModeBtn" title="Process multiple POs & DCs together in one batch">📦 Bulk Batch Mode</button>
+          <button type="button" class="btn quiet" id="pushGsheetBtn" title="Send verified invoice row directly to Company Google Sheet">📊 Push to Sheet</button>
           <button type="button" class="btn quiet" id="waSummaryBtn" title="Copy formatted summary for WhatsApp or Email">💬 WhatsApp Summary</button>
           <button type="button" class="btn quiet" id="printSheetBtn" title="Print or Save as PDF Voucher">🖨️ Print / PDF</button>
           <button type="button" class="btn secondary" id="copyBtn">Copy row for Main Sheet</button>
@@ -1104,6 +1226,68 @@ body.auth-locked .ug-footer { display: none !important; }
       </div>
       <p class="sheet-foot">Lines that cannot be matched to a SKU count as ₹0 until the master sheet is fixed. The totals above are the sum of the predicted values in the table.</p>
     </section>
+
+    <section id="bulkPanel" hidden aria-label="Bulk batch processing">
+      <div class="bulk-head">
+        <div>
+          <h2>📦 Bulk / Batch Processing (Multiple POs &amp; DCs)</h2>
+          <p>Ek saath kai PO files aur DC PDFs drop karein — tool PO Number match karke sabka Predicted Value ek saath calculate karega.</p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn quiet sm" id="bulkClearFiles">Clear Batch</button>
+          <button type="button" class="btn quiet sm" id="bulkExitBtn">← Back to Single View</button>
+        </div>
+      </div>
+
+      <div class="bulk-drop-grid">
+        <div class="bulk-drop-box" id="bulkPoDrop">
+          <div class="bulk-drop-title"><span>1. Multiple Purchase Orders</span><span id="bulkPoCnt" class="slot-badge">0 files</span></div>
+          <div class="bulk-drop-sub">Drop multiple PO Excel (.xlsx) or PDFs here or click</div>
+          <input type="file" id="bulkPoInput" accept=".pdf,.xlsx,.xls" multiple>
+          <div class="bulk-file-pills" id="bulkPoList"></div>
+        </div>
+
+        <div class="bulk-drop-box" id="bulkDcDrop">
+          <div class="bulk-drop-title"><span>2. Multiple Delivery Challans</span><span id="bulkDcCnt" class="slot-badge">0 files</span></div>
+          <div class="bulk-drop-sub">Drop multiple Ugaoo DC PDFs here or click</div>
+          <input type="file" id="bulkDcInput" accept=".pdf" multiple>
+          <div class="bulk-file-pills" id="bulkDcList"></div>
+        </div>
+      </div>
+
+      <div class="bulk-actions-bar">
+        <div class="actions">
+          <button type="button" class="btn" id="bulkRunBtn">⚡ Run Batch Comparison</button>
+          <button type="button" class="btn secondary" id="bulkSaveAllLogBtn" disabled>💾 Save All Matched to Log</button>
+          <button type="button" class="btn secondary" id="bulkExportBtn" disabled>📥 Download Batch Excel</button>
+        </div>
+        <div class="bulk-sum-badges" id="bulkSumBadges"></div>
+      </div>
+
+      <div class="bulk-table-wrap">
+        <table id="bulkResultTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>PO Number</th>
+              <th>PO Date</th>
+              <th>DC Number</th>
+              <th>DC Date</th>
+              <th>Customer</th>
+              <th class="num">PO Qty</th>
+              <th class="num">DC Qty</th>
+              <th class="num">Predicted Inv Value</th>
+              <th>Status</th>
+              <th>Notes / Match Info</th>
+            </tr>
+          </thead>
+          <tbody id="bulkTbody">
+            <tr><td colspan="11" class="no-rows">Master sheet load karein aur upar multiple PO + DC files drop karke "Run Batch Comparison" dabayein.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -3277,6 +3461,7 @@ maybeRun();
           <input type="search" id="admActSearch" placeholder="Search PO, DC, action, value..." aria-label="Search activity">
         </div>
         <div class="actions">
+          <button type="button" class="btn secondary sm" id="admExportAuditBtn">📥 Download Monthly Audit Excel</button>
           <button type="button" class="btn quiet sm" id="admActClear">Clear Activity</button>
         </div>
       </div>
@@ -3371,6 +3556,22 @@ maybeRun();
           <p>Aap jo bhi user banayenge, block/disable karenge, ya timer/permission badlenge — wo <strong>1 second ke andar</strong> sabhi online users par apply ho jayega. Ab baar-baar nayi HTML file bhejne ki zaroorat nahi, bas apna <strong>Live URL</strong> share karein!</p>
         </div>
         <button type="button" class="btn" id="admCopyUrlBtn2">🔗 Copy Live URL</button>
+      </div>
+
+      <div class="perm-box" style="display:flex;flex-direction:column;gap:10px">
+        <h4>📊 Company Google Sheets Direct Push (Optional ERP Webhook)</h4>
+        <p style="margin:0;font-size:.83rem;color:var(--ink-2)">Apne Google Sheet ka Apps Script Web App URL yahan paste karke save karein — poori team 1 click mein verified PO/DC data seedha Google Sheet mein bhej payegi.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <input id="admGsheetUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;min-width:240px;padding:8px 10px;border:1px solid var(--rule-strong);border-radius:8px;font:inherit;font-size:.88rem">
+          <button type="button" class="btn secondary" id="admSaveGsheetBtn">Save Sheet URL</button>
+        </div>
+        <span id="admGsheetMsg" class="add-msg" aria-live="polite"></span>
+      </div>
+
+      <div class="perm-box" style="display:flex;flex-direction:column;gap:8px">
+        <h4>🛡️ Permanent Firebase Security Rules (30-Day Test Mode Fix)</h4>
+        <p style="margin:0;font-size:.83rem;color:var(--ink-2)">Firebase Realtime Database → <strong>Rules</strong> tab mein niche diye gaye rules paste karke <strong>Publish</strong> kar dein taaki database kabhi expire na ho aur sirf <code>ivp_v14</code> path hi accessible rahe:</p>
+        <pre style="margin:0;padding:10px 12px;border-radius:10px;background:var(--sunken);border:1px solid var(--rule);font-size:.78rem;overflow:auto">{"rules":{".read":false,".write":false,"ivp_v14":{".read":true,".write":true}}}</pre>
       </div>
 
       <form id="admCredForm" class="perm-box" autocomplete="off" style="display:flex;flex-direction:column;gap:12px">
@@ -4555,6 +4756,750 @@ maybeRun();
   }
 
   attachCloudListeners();
+})();
+</script>
+
+
+<script id="ivpUpgrade2BulkBatch">
+/* ===== UPGRADE #2: BULK / BATCH PO & DC PROCESSING ===== */
+(function(){
+  let bulkPoFiles = []; // File[]
+  let bulkDcFiles = []; // File[]
+  let bulkResults = []; // array of batch row objects with .comp (compare result)
+
+  function openBulkPanel() {
+    if (!masterRows.length && window.ugToast) {
+      window.ugToast("Tip: Sabse pehle Master Sheet load kar lein (ya Cloud Master sync hone dein).", "warn");
+    }
+    $("empty").hidden = true;
+    $("result").hidden = true;
+    $("bulkPanel").hidden = false;
+    document.querySelectorAll("#bulkModeBtn, #bulkModeBtnEmpty").forEach(b => b.classList.add("active-bulk"));
+    if (window.__ivpLogActivity) window.__ivpLogActivity("pred", "Opened Bulk Batch Mode", "Multi-PO & Multi-DC");
+  }
+
+  function exitBulkPanel() {
+    $("bulkPanel").hidden = true;
+    document.querySelectorAll("#bulkModeBtn, #bulkModeBtnEmpty").forEach(b => b.classList.remove("active-bulk"));
+    maybeRun();
+  }
+
+  if ($("bulkModeBtn"))      $("bulkModeBtn").addEventListener("click", openBulkPanel);
+  if ($("bulkModeBtnEmpty")) $("bulkModeBtnEmpty").addEventListener("click", openBulkPanel);
+  if ($("bulkExitBtn"))      $("bulkExitBtn").addEventListener("click", exitBulkPanel);
+
+  function renderFilePills() {
+    $("bulkPoCnt").textContent = `${bulkPoFiles.length} file${bulkPoFiles.length === 1 ? "" : "s"}`;
+    $("bulkDcCnt").textContent = `${bulkDcFiles.length} file${bulkDcFiles.length === 1 ? "" : "s"}`;
+    $("bulkPoList").innerHTML = bulkPoFiles.map(f => `<span class="bulk-fpill">${esc(f.name)}</span>`).join("");
+    $("bulkDcList").innerHTML = bulkDcFiles.map(f => `<span class="bulk-fpill">${esc(f.name)}</span>`).join("");
+  }
+
+  function addBulkFiles(kind, fileList) {
+    if (!fileList || !fileList.length) return;
+    const arr = Array.from(fileList);
+    if (kind === "po") {
+      arr.forEach(f => { if (!bulkPoFiles.some(x => x.name === f.name && x.size === f.size)) bulkPoFiles.push(f); });
+    } else {
+      arr.forEach(f => { if (!bulkDcFiles.some(x => x.name === f.name && x.size === f.size)) bulkDcFiles.push(f); });
+    }
+    renderFilePills();
+  }
+
+  if ($("bulkPoInput")) $("bulkPoInput").addEventListener("change", e => { addBulkFiles("po", e.target.files); e.target.value = ""; });
+  if ($("bulkDcInput")) $("bulkDcInput").addEventListener("change", e => { addBulkFiles("dc", e.target.files); e.target.value = ""; });
+
+  [["bulkPoDrop", "po"], ["bulkDcDrop", "dc"]].forEach(([boxId, kind]) => {
+    const box = $(boxId);
+    if (!box) return;
+    box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("drag"); });
+    box.addEventListener("dragleave", () => box.classList.remove("drag"));
+    box.addEventListener("drop", e => {
+      e.preventDefault(); e.stopPropagation();
+      box.classList.remove("drag");
+      addBulkFiles(kind, e.dataTransfer.files);
+    });
+  });
+
+  if ($("bulkClearFiles")) {
+    $("bulkClearFiles").addEventListener("click", () => {
+      bulkPoFiles = []; bulkDcFiles = []; bulkResults = [];
+      renderFilePills();
+      $("bulkSumBadges").innerHTML = "";
+      $("bulkSaveAllLogBtn").disabled = true;
+      $("bulkExportBtn").disabled = true;
+      $("bulkTbody").innerHTML = '<tr><td colspan="11" class="no-rows">Batch cleared. Nayi PO aur DC files drop karein.</td></tr>';
+    });
+  }
+
+  async function runBatchComparison() {
+    if (!masterRows.length) {
+      if (window.ugToast) window.ugToast("Pehle Master Sheet load karein!", "err");
+      return;
+    }
+    if (!bulkPoFiles.length || !bulkDcFiles.length) {
+      if (window.ugToast) window.ugToast("Kam se kam 1 PO aur 1 DC file select karein.", "err");
+      return;
+    }
+
+    const btn = $("bulkRunBtn");
+    btn.disabled = true;
+    btn.textContent = "⏳ Processing...";
+
+    const parsedPOs = [];
+    const poErrors = [];
+    for (const f of bulkPoFiles) {
+      try {
+        const p = await parsePO(f);
+        parsedPOs.push({ file: f, po: p, normPo: normId(p.meta.po_number || "") });
+      } catch (err) {
+        poErrors.push({ file: f.name, error: err.message });
+      }
+    }
+
+    const parsedDCs = [];
+    const dcErrors = [];
+    for (const f of bulkDcFiles) {
+      try {
+        if (!/\.pdf$/i.test(f.name)) throw new Error("DC ke liye PDF chahiye.");
+        const d = await parseDCPdf(f);
+        if (!d.items.length) throw new Error("DC PDF se koi item row nahi mili.");
+        parsedDCs.push({ file: f, dc: d, normRef: normId(d.meta.po_number_ref || ""), used: false });
+      } catch (err) {
+        dcErrors.push({ file: f.name, error: err.message });
+      }
+    }
+
+    const rowsOut = [];
+    // Pair each PO with matching DC(s) by PO Number / PO Reference
+    for (const pObj of parsedPOs) {
+      const matchedDCs = parsedDCs.filter(dObj => {
+        if (!pObj.normPo || !dObj.normRef) return false;
+        return dObj.normRef === pObj.normPo || dObj.normRef.includes(pObj.normPo) || pObj.normPo.includes(dObj.normRef);
+      });
+
+      if (matchedDCs.length) {
+        for (const dObj of matchedDCs) {
+          dObj.used = true;
+          try {
+            const comp = compare(pObj.po, dObj.dc);
+            const cust = dObj.dc.meta.customer || pObj.po.meta.customer || "";
+            rowsOut.push({
+              poNumber: pObj.po.meta.po_number || pObj.file.name,
+              poDate: pObj.po.meta.po_date || "",
+              dcNumber: dObj.dc.meta.dc_number || dObj.file.name,
+              dcDate: dObj.dc.meta.dc_date || "",
+              customer: cust,
+              poQty: comp.totals.poQty,
+              dcQty: comp.totals.dcQty,
+              predicted: comp.totals.predicted,
+              status: comp.overall.status,
+              note: comp.overall.reasons.length ? comp.overall.reasons[0] : "Matched cleanly",
+              comp
+            });
+          } catch (err) {
+            rowsOut.push({
+              poNumber: pObj.po.meta.po_number || pObj.file.name,
+              poDate: pObj.po.meta.po_date || "",
+              dcNumber: dObj.dc.meta.dc_number || dObj.file.name,
+              dcDate: dObj.dc.meta.dc_date || "",
+              customer: pObj.po.meta.customer || "",
+              poQty: 0, dcQty: 0, predicted: 0,
+              status: "ERROR",
+              note: err.message,
+              comp: null
+            });
+          }
+        }
+      } else {
+        rowsOut.push({
+          poNumber: pObj.po.meta.po_number || pObj.file.name,
+          poDate: pObj.po.meta.po_date || "",
+          dcNumber: "—",
+          dcDate: "",
+          customer: pObj.po.meta.customer || "",
+          poQty: pObj.po.items.reduce((a, x) => a + (x.po_qty || 0), 0),
+          dcQty: 0,
+          predicted: 0,
+          status: "NO DC",
+          note: `Is PO (${pObj.file.name}) ke liye matching DC nahi mili.`,
+          comp: null
+        });
+      }
+    }
+
+    // Any unmatched DCs
+    parsedDCs.filter(dObj => !dObj.used).forEach(dObj => {
+      rowsOut.push({
+        poNumber: dObj.dc.meta.po_number_ref || "—",
+        poDate: "",
+        dcNumber: dObj.dc.meta.dc_number || dObj.file.name,
+        dcDate: dObj.dc.meta.dc_date || "",
+        customer: dObj.dc.meta.customer || "",
+        poQty: 0,
+        dcQty: dObj.dc.items.reduce((a, x) => a + (x.dc_qty || 0), 0),
+        predicted: 0,
+        status: "UNMATCHED DC",
+        note: `DC (${dObj.file.name}) ka PO reference kisi uploaded PO se match nahi hua.`,
+        comp: null
+      });
+    });
+
+    poErrors.forEach(e => rowsOut.push({
+      poNumber: e.file, poDate: "", dcNumber: "—", dcDate: "", customer: "",
+      poQty: 0, dcQty: 0, predicted: 0, status: "PO ERROR", note: e.error, comp: null
+    }));
+    dcErrors.forEach(e => rowsOut.push({
+      poNumber: "—", poDate: "", dcNumber: e.file, dcDate: "", customer: "",
+      poQty: 0, dcQty: 0, predicted: 0, status: "DC ERROR", note: e.error, comp: null
+    }));
+
+    bulkResults = rowsOut;
+    renderBulkResults();
+    btn.disabled = false;
+    btn.textContent = "⚡ Run Batch Comparison";
+
+    const totalPred = round2(rowsOut.reduce((a, r) => a + (+r.predicted || 0), 0));
+    if (window.ugToast) window.ugToast(`📦 Batch complete: ${rowsOut.length} rows · Total Predicted ${fmtINR(totalPred)}`);
+    if (window.__ivpLogActivity) {
+      window.__ivpLogActivity("pred", `Batch Processed (${rowsOut.length} pairs)`, `Total Predicted: ${fmtINR(totalPred)}`);
+    }
+  }
+
+  function renderBulkResults() {
+    const tb = $("bulkTbody");
+    if (!bulkResults.length) {
+      tb.innerHTML = '<tr><td colspan="11" class="no-rows">Koi result nahi mila.</td></tr>';
+      return;
+    }
+    tb.innerHTML = bulkResults.map((r, idx) => {
+      const isOk = r.status === "OK";
+      const pillCls = isOk ? "ok" : (r.status === "REVIEW REQUIRED" ? "warn" : "review");
+      return `<tr>
+        <td class="c-sl">${idx + 1}</td>
+        <td class="strong">${esc(r.poNumber)}</td>
+        <td>${esc(r.poDate)}</td>
+        <td class="strong">${esc(r.dcNumber)}</td>
+        <td>${esc(r.dcDate)}</td>
+        <td>${esc(r.customer)}</td>
+        <td class="num">${fmtQty(r.poQty)}</td>
+        <td class="num">${fmtQty(r.dcQty)}</td>
+        <td class="num strong">${fmtINR(r.predicted)}</td>
+        <td><span class="pill ${pillCls}">${esc(r.status)}</span></td>
+        <td style="font-size:.82rem;color:var(--ink-2)">${esc(r.note)}</td>
+      </tr>`;
+    }).join("");
+
+    const sumPred = round2(bulkResults.reduce((a, r) => a + (+r.predicted || 0), 0));
+    const sumPoQ  = bulkResults.reduce((a, r) => a + (+r.poQty || 0), 0);
+    const sumDcQ  = bulkResults.reduce((a, r) => a + (+r.dcQty || 0), 0);
+    const okCnt   = bulkResults.filter(r => r.status === "OK").length;
+
+    $("bulkSumBadges").innerHTML = `
+      <span>Pairs: ${bulkResults.length}</span>
+      <span>Clean OK: ${okCnt}</span>
+      <span>PO Qty: ${fmtQty(sumPoQ)}</span>
+      <span>DC Qty: ${fmtQty(sumDcQ)}</span>
+      <span>Total Predicted: ${fmtINR(sumPred)}</span>
+    `;
+
+    const hasComparable = bulkResults.some(r => !!r.comp);
+    $("bulkSaveAllLogBtn").disabled = !hasComparable;
+    $("bulkExportBtn").disabled = !bulkResults.length;
+  }
+
+  if ($("bulkRunBtn")) $("bulkRunBtn").addEventListener("click", runBatchComparison);
+
+  // Save all matched batch items into Record Log (and cloud via Upgrade #1)
+  if ($("bulkSaveAllLogBtn")) {
+    $("bulkSaveAllLogBtn").addEventListener("click", () => {
+      const valid = bulkResults.filter(r => !!r.comp);
+      if (!valid.length) return;
+      let saved = 0, skipped = 0;
+      valid.forEach(r => {
+        const m = r.comp.po.meta, d = r.comp.dc.meta;
+        const rec = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + saved,
+          poNumber: m.po_number || "",
+          poDate: m.po_date || "",
+          customer: d.customer || m.customer || "",
+          city: d.city || m.city || "",
+          pincode: digitsOnly(d.pincode || m.pincode || ""),
+          poQty: r.comp.totals.poQty,
+          dcQty: r.comp.totals.dcQty,
+          dcDate: d.dc_date || "",
+          dcNumber: d.dc_number || "",
+          predicted: r.comp.totals.predicted,
+          status: r.comp.overall.status,
+          savedAt: new Date().toISOString()
+        };
+        if (!rec.poNumber || !rec.dcNumber) { skipped++; return; }
+        const dupIdx = logRows.findIndex(x => normId(x.poNumber) === normId(rec.poNumber) && normId(x.dcNumber) === normId(rec.dcNumber));
+        if (dupIdx >= 0) { skipped++; return; }
+        logRows.push(rec);
+        saved++;
+      });
+      persistLog();
+      renderLog();
+      if (saved && typeof saveToLog === "function") {
+        // Trigger cloud push if Upgrade #1 listener is active
+        const dbRef = firebase && firebase.apps && firebase.apps.length ? firebase.database() : null;
+        if (dbRef) {
+          let by = "User";
+          try { const s = JSON.parse(sessionStorage.getItem("ivp_auth_session_v14") || "null"); if (s && s.username) by = s.role === "admin" ? `${s.username} (Admin)` : s.username; } catch (e) {}
+          logRows.forEach(x => { if (!x.loggedBy) x.loggedBy = by; });
+          persistLog();
+          dbRef.ref("ivp_v14/recordLog").set({ updatedAt: Date.now(), updatedBy: by, rows: logRows }).catch(() => {});
+        }
+      }
+      if (window.ugToast) window.ugToast(`💾 Batch Log: ${saved} saved, ${skipped} skipped (duplicate/missing ID).`);
+      if (window.__ivpLogActivity) window.__ivpLogActivity("log", `Batch Saved ${saved} Records to Log`, `Skipped: ${skipped}`);
+    });
+  }
+
+  // Export Batch Summary Excel
+  if ($("bulkExportBtn")) {
+    $("bulkExportBtn").addEventListener("click", () => {
+      if (!bulkResults.length) return;
+      const head = ["#", "PO Number", "PO Date", "DC Number", "DC Date", "Customer", "PO Qty", "DC Qty", "Predicted Inv Value", "Status", "Notes"];
+      const body = bulkResults.map((r, i) => [
+        i + 1, r.poNumber, r.poDate, r.dcNumber, r.dcDate, r.customer, r.poQty, r.dcQty, r.predicted, r.status, r.note
+      ]);
+      const totRow = [
+        "", "TOTAL", "", "", "", "",
+        bulkResults.reduce((a, r) => a + (+r.poQty || 0), 0),
+        bulkResults.reduce((a, r) => a + (+r.dcQty || 0), 0),
+        round2(bulkResults.reduce((a, r) => a + (+r.predicted || 0), 0)),
+        "", ""
+      ];
+      const ws = XLSX.utils.aoa_to_sheet([head].concat(body, [totRow]));
+      ws["!cols"] = [5, 18, 12, 18, 12, 22, 10, 10, 20, 16, 60].map(wch => ({ wch }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Batch Summary");
+      XLSX.writeFile(wb, `Ugaoo_Batch_Prediction_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      if (window.ugToast) window.ugToast("📥 Batch Summary Excel downloaded!");
+      if (window.__ivpLogActivity) window.__ivpLogActivity("export", `Exported Batch Excel (${bulkResults.length} rows)`, "");
+    });
+  }
+})();
+</script>
+
+
+<script id="ivpUpgrades3456">
+/* ===== UPGRADES #3, #4, #5 & #6: 3-WAY INVOICE CHECK, PWA APP, SINGLE-DEVICE LOCK, EXPIRY ALERTS & ANALYTICS ===== */
+(function(){
+  const ROOT = "ivp_v14";
+
+  // ------------------------------------------------------------------
+  // UPGRADE #3: 3-WAY RECONCILIATION (PO vs DC vs ACTUAL TAX INVOICE)
+  // ------------------------------------------------------------------
+  let actualInvoiceData = null; // { fileName, invNo, invDate, poRef, dcRef, subtotal, taxTotal, grandTotal, itemCount }
+
+  function parseTaxInvoicePdf(pages, text, fileName) {
+    const invNoM = text.match(/(?:Tax\s*Invoice\s*No|Invoice\s*No\.?|Inv\s*No\.?)\s*:?\s*([A-Z0-9\/\-]{4,25})/i);
+    const invDtM = text.match(/(?:Invoice\s*Date|Dated)\s*:?\s*(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}|\d{4}-\d{2}-\d{2})/i);
+    const poRefM = text.match(/(?:P\.O\.\s*Number|\bPO\s*No\.?|\bPO\s*Number|\bPO\s*:-?)\s*:?\s*([0-9A-Za-z\u0370-\u03FF\-]+)/i);
+    const dcRefM = text.match(/(?:Challan\s*No\.?|DC\s*No\.?|Delivery\s*Note)\s*:?\s*([A-Z0-9\/\-]{4,25})/i);
+
+    // Extract Grand Total / Total Invoice Value (INR)
+    let grandTotal = null;
+    const grandPatterns = [
+      /(?:Grand\s*Total|Total\s*Invoice\s*Value|Invoice\s*Total|Total\s*Amount\s*\(Incl\.?\s*Tax\)|Net\s*Payable)\s*(?:\(INR\))?\s*:?\s*₹?\s*([\d,]+\.\d{2})/i,
+      /Total\s*(?:Amount)?\s*₹?\s*([\d,]+\.\d{2})\s*$/im
+    ];
+    for (const re of grandPatterns) {
+      const m = text.match(re);
+      if (m) { grandTotal = toFloat(m[1]); break; }
+    }
+    if (grandTotal == null) {
+      // Fallback: largest currency figure with 2 decimals in the bottom 35% of text
+      const tail = text.slice(Math.floor(text.length * 0.6));
+      const nums = [...tail.matchAll(/([\d,]+\.\d{2})/g)].map(m => toFloat(m[1])).filter(n => n != null && n > 0);
+      if (nums.length) grandTotal = Math.max(...nums);
+    }
+
+    // Extract Taxable / Subtotal if present
+    let subtotal = null;
+    const subM = text.match(/(?:Taxable\s*(?:Value|Amount)|Sub\s*Total|Total\s*Taxable)\s*:?\s*₹?\s*([\d,]+\.\d{2})/i);
+    if (subM) subtotal = toFloat(subM[1]);
+
+    return {
+      fileName,
+      invNo: invNoM ? clean(invNoM[1]) : fileName.replace(/\.pdf$/i, ""),
+      invDate: invDtM ? isoToDmy(invDtM[1]) : "",
+      poRef: poRefM ? clean(poRefM[1]) : "",
+      dcRef: dcRefM ? clean(dcRefM[1]) : "",
+      subtotal,
+      grandTotal
+    };
+  }
+
+  function render3WayCard() {
+    const card = $("inv3Card");
+    if (!card) return;
+    if (!current || !actualInvoiceData) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const predVal = round2(current.totals.predicted || 0);
+    const actVal  = actualInvoiceData.grandTotal != null ? round2(actualInvoiceData.grandTotal) : null;
+    const diff    = actVal != null ? round2(actVal - predVal) : null;
+    const isExact = diff != null && Math.abs(diff) <= 1.0;
+
+    card.className = "inv3-card " + (actVal == null ? "" : (isExact ? "match" : "mismatch"));
+    const poMatch = !actualInvoiceData.poRef || normId(actualInvoiceData.poRef) === normId(current.po.meta.po_number || "");
+
+    card.innerHTML = `
+      <div>
+        <strong style="font-size:.95rem">🧾 3-Way Reconciliation: ${esc(actualInvoiceData.invNo)}</strong>
+        <div style="font-size:.8rem;color:var(--ink-2);margin-top:2px">
+          ${actualInvoiceData.invDate ? "Date: " + esc(actualInvoiceData.invDate) + " · " : ""}
+          ${actualInvoiceData.poRef ? "PO Ref: " + esc(actualInvoiceData.poRef) + (poMatch ? " ✓" : " ⚠️ (PO mismatch)") : "File: " + esc(actualInvoiceData.fileName)}
+        </div>
+      </div>
+      <div class="inv3-metrics">
+        <div class="inv3-m"><small>Predicted (PO×DC)</small><b>${fmtINR(predVal)}</b></div>
+        <div class="inv3-m"><small>Actual Tax Invoice</small><b>${actVal != null ? fmtINR(actVal) : "Not detected"}</b></div>
+        <div class="inv3-m"><small>Difference</small><b style="color:${isExact ? "var(--ok)" : "var(--bad)"}">${diff != null ? (diff >= 0 ? "+" : "") + fmtINR(diff) : "—"}</b></div>
+        <div><span class="pill ${isExact ? "ok" : "review"}">${isExact ? "✓ 3-Way Matched" : "⚠️ Variance Found"}</span></div>
+      </div>
+    `;
+  }
+
+  async function handleInvoiceFile(file) {
+    if (!file) return;
+    setSlot("inv", "loading", file.name, "Reading Tax Invoice PDF…");
+    try {
+      const { pages, text } = await readPdf(file);
+      actualInvoiceData = parseTaxInvoicePdf(pages, text, file.name);
+      setSlot("inv", "ok", actualInvoiceData.invNo, actualInvoiceData.grandTotal != null ? `Billed: ${fmtINR(actualInvoiceData.grandTotal)}` : "Loaded (total not auto-detected)");
+      render3WayCard();
+      if (window.ugToast) window.ugToast(`🧾 Tax Invoice ${actualInvoiceData.invNo} loaded for 3-Way check.`);
+    } catch (err) {
+      actualInvoiceData = null;
+      setSlot("inv", "error", file.name, err.message);
+      render3WayCard();
+    }
+  }
+
+  const invInput = $("invFile");
+  if (invInput) invInput.addEventListener("change", e => { handleInvoiceFile(e.target.files[0]); e.target.value = ""; });
+  const invSlot = $("slot-inv");
+  if (invSlot) {
+    invSlot.addEventListener("dragover", e => { e.preventDefault(); invSlot.classList.add("drag"); });
+    invSlot.addEventListener("dragleave", () => invSlot.classList.remove("drag"));
+    invSlot.addEventListener("drop", e => {
+      e.preventDefault(); e.stopPropagation(); invSlot.classList.remove("drag");
+      if (e.dataTransfer.files[0]) handleInvoiceFile(e.dataTransfer.files[0]);
+    });
+  }
+  const resetBtn = $("resetBtn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      actualInvoiceData = null;
+      setSlot("inv", "empty", "Drop Actual Tax Invoice PDF here", "Compares Predicted vs Actual Billed Invoice");
+      render3WayCard();
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // UPGRADE #4: INSTALLABLE PROGRESSIVE WEB APP (PWA) MANIFEST + SW
+  // ------------------------------------------------------------------
+  let deferredInstallPrompt = null;
+  try {
+    const manifestObj = {
+      name: "UGAOO · Invoice Value Predictor Pro",
+      short_name: "Ugaoo Predictor",
+      start_url: location.href,
+      display: "standalone",
+      background_color: "#0f4c31",
+      theme_color: "#0f8a6d",
+      icons: [{
+        src: "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="42" fill="#0f4c31"/><path d="M87 156C78 126 42 117 30 87C22.5 69 33 54 46.5 63C57 70.5 63 87 72 102C66 72 45 45 54 25.5C61.5 10.5 78 15 82.5 33C86.4 48 85.5 69 88.5 87C93 57 96 21 112.5 15C127.5 9.6 138 24 130.5 43.5C123.6 61.5 109.5 78 102 96C117 78 139.5 52.5 157.5 58.5C172.5 63.6 169.5 82.5 154.5 94.5C136.5 108.6 114 117 102 135C98.4 142.5 95.4 151.5 92.4 159C90.6 163.5 88.2 160.5 87 156Z" fill="#6ee7b7"/></svg>'),
+        sizes: "192x192",
+        type: "image/svg+xml"
+      }]
+    };
+    const mBlob = new Blob([JSON.stringify(manifestObj)], { type: "application/manifest+json" });
+    const mLink = document.createElement("link");
+    mLink.rel = "manifest";
+    mLink.href = URL.createObjectURL(mBlob);
+    document.head.appendChild(mLink);
+
+    if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+      const swCode = "self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',()=>{});";
+      const swBlob = new Blob([swCode], { type: "application/javascript" });
+      navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+    }
+  } catch (e) {}
+
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    const btn = $("pwaInstallBtn");
+    if (btn) btn.hidden = false;
+  });
+
+  const pwaBtn = $("pwaInstallBtn");
+  if (pwaBtn) {
+    pwaBtn.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice && choice.outcome === "accepted") {
+        pwaBtn.hidden = true;
+        if (window.ugToast) window.ugToast("📲 Ugaoo App installed on your device!");
+      }
+      deferredInstallPrompt = null;
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // UPGRADE #5: SINGLE-DEVICE SESSION LOCK + ADMIN AUDIT REPORT EXCEL
+  // ------------------------------------------------------------------
+  const DEVICE_TOKEN = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  let activeLockUnsub = null;
+
+  function enforceSingleDeviceLock(sess) {
+    if (!firebase || !firebase.apps || !firebase.apps.length) return;
+    if (activeLockUnsub) { activeLockUnsub(); activeLockUnsub = null; }
+    if (!sess || sess.role !== "user") return;
+
+    const uKey = String(sess.username || "").toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    const lockRef = firebase.database().ref(`${ROOT}/sessionLock/${uKey}`);
+    lockRef.set({ token: DEVICE_TOKEN, ts: Date.now(), ua: navigator.userAgent.slice(0, 80) }).catch(() => {});
+
+    const handler = snap => {
+      const val = snap.val();
+      if (val && val.token && val.token !== DEVICE_TOKEN) {
+        // Another laptop/browser logged in with the same User ID!
+        lockRef.off("value", handler);
+        sessionStorage.removeItem("ivp_auth_session_v14");
+        document.body.classList.add("auth-locked");
+        const ov = $("authOverlay");
+        const al = $("authAlert");
+        if (ov) ov.hidden = false;
+        if (al) {
+          al.className = "auth-alert err";
+          al.innerHTML = "<strong>🔒 Single-Device Lock:</strong> Is User ID se kisi doosre device par login kiya gaya hai, isliye yahan session logout ho gaya.";
+          al.hidden = false;
+        }
+      }
+    };
+    lockRef.on("value", handler);
+    activeLockUnsub = () => lockRef.off("value", handler);
+  }
+
+  // Monitor session changes for Single-Device Lock
+  let lastLockedUser = "";
+  setInterval(() => {
+    try {
+      const s = JSON.parse(sessionStorage.getItem("ivp_auth_session_v14") || "null");
+      const key = s && s.role === "user" ? s.username : "";
+      if (key !== lastLockedUser) {
+        lastLockedUser = key;
+        enforceSingleDeviceLock(s);
+      }
+    } catch (e) {}
+  }, 1500);
+
+  // Admin Monthly Audit Excel Export
+  const auditBtn = $("admExportAuditBtn");
+  if (auditBtn) {
+    auditBtn.addEventListener("click", () => {
+      const wb = XLSX.utils.book_new();
+      // Sheet 1: Record Log Summary
+      const logSheetRows = [["#", "PO Number", "PO Date", "Customer", "City", "Pincode", "PO Qty", "DC Qty", "DC Date", "DC Number", "Predicted Inv Value", "Logged By", "Status"]];
+      (logRows || []).forEach((r, i) => {
+        logSheetRows.push([i + 1, r.poNumber, r.poDate, r.customer, r.city, r.pincode, r.poQty, r.dcQty, r.dcDate, r.dcNumber, r.predicted, r.loggedBy || "", r.status]);
+      });
+      const ws1 = XLSX.utils.aoa_to_sheet(logSheetRows);
+      ws1["!cols"] = [5, 18, 12, 22, 16, 10, 9, 9, 12, 18, 20, 18, 16].map(wch => ({ wch }));
+      XLSX.utils.book_append_sheet(wb, ws1, "Verified Billing Log");
+
+      // Sheet 2: Live Cloud Activity Audit
+      if (firebase && firebase.apps && firebase.apps.length) {
+        firebase.database().ref(`${ROOT}/activity`).limitToLast(500).once("value").then(snap => {
+          const obj = snap.val() || {};
+          const acts = Object.values(obj).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+          const actRows = [["Timestamp", "User", "Action", "Details"]];
+          acts.forEach(a => {
+            actRows.push([a.ts ? new Date(a.ts).toLocaleString("en-IN") : "", a.user || "", a.action || "", a.detail || ""]);
+          });
+          const ws2 = XLSX.utils.aoa_to_sheet(actRows);
+          ws2["!cols"] = [{ wch: 22 }, { wch: 18 }, { wch: 30 }, { wch: 50 }];
+          XLSX.utils.book_append_sheet(wb, ws2, "User Activity Audit");
+          XLSX.writeFile(wb, `Ugaoo_Admin_Audit_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+          if (window.ugToast) window.ugToast("📥 Admin Audit Excel Report downloaded!");
+        });
+      } else {
+        XLSX.writeFile(wb, `Ugaoo_Admin_Audit_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // UPGRADE #6: PO EXPIRY ALERTS, MARKETPLACE ANALYTICS & GOOGLE SHEETS PUSH
+  // ------------------------------------------------------------------
+  function parseDmyDate(s) {
+    const m = String(s || "").trim().match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (!m) return null;
+    return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10), 23, 59, 59);
+  }
+
+  function checkPoExpiryAlert(res) {
+    const box = $("poExpiryAlert");
+    if (!box) return;
+    if (!res || !res.po || !res.po.meta || !res.po.meta.po_expiry_date) {
+      box.hidden = true;
+      return;
+    }
+    const expStr = res.po.meta.po_expiry_date;
+    const expDt = parseDmyDate(expStr);
+    if (!expDt || isNaN(expDt.getTime())) { box.hidden = true; return; }
+    const diffHours = Math.round((expDt.getTime() - Date.now()) / 3600000);
+    if (diffHours < 0) {
+      box.hidden = false;
+      box.className = "expiry-banner";
+      box.innerHTML = `🚨 <span><strong>PO EXPIRED!</strong> Is PO ki expiry date (<b>${esc(expStr)}</b>) nikal chuki hai (${Math.abs(Math.floor(diffHours / 24))} din pehle). Billing se pehle buyer se PO extension confirm karein.</span>`;
+    } else if (diffHours <= 72) {
+      box.hidden = false;
+      box.className = "expiry-banner soon";
+      box.innerHTML = `⏰ <span><strong>PO Expiry Warning:</strong> Ye PO <b>${esc(expStr)}</b> ko expire ho jayega (sirf <b>${diffHours} ghante</b> bache hain)!</span>`;
+    } else {
+      box.hidden = true;
+    }
+  }
+
+  // Hook into renderResult to run PO Expiry Check + 3-Way Invoice Check
+  if (typeof renderResult === "function") {
+    const _rPrev = renderResult;
+    renderResult = function(res) {
+      _rPrev(res);
+      checkPoExpiryAlert(res);
+      render3WayCard();
+    };
+  }
+
+  // Marketplace Performance Analytics inside Record Log Dashboard (#lgDash)
+  function detectMarketplaceName(r) {
+    const c = `${r.customer || ""} ${r.poNumber || ""}`.toLowerCase();
+    if (c.includes("blinkit") || c.includes("grofers") || c.includes("hands on trades")) return "Blinkit";
+    if (c.includes("zepto") || c.includes("kiranakart")) return "Zepto";
+    if (c.includes("swiggy") || c.includes("scootsy") || c.includes("instamart") || c.includes("pjtj")) return "Swiggy / Instamart";
+    if (c.includes("flipkart")) return "Flipkart";
+    if (c.includes("bigbasket") || c.includes("innovative retail")) return "BigBasket";
+    return "Other / Direct";
+  }
+
+  if (typeof renderLog === "function") {
+    const _rLogPrev = renderLog;
+    renderLog = function() {
+      _rLogPrev();
+      const dash = $("lgDash");
+      if (!dash) return;
+      let mpWrap = $("mpAnalyticsWrap");
+      if (!mpWrap) {
+        mpWrap = document.createElement("div");
+        mpWrap.id = "mpAnalyticsWrap";
+        mpWrap.style.gridColumn = "1 / -1";
+        dash.appendChild(mpWrap);
+      }
+      const mpStats = {};
+      (logRows || []).forEach(r => {
+        const mp = detectMarketplaceName(r);
+        if (!mpStats[mp]) mpStats[mp] = { val: 0, poQ: 0, dcQ: 0, count: 0 };
+        mpStats[mp].val += (+r.predicted || 0);
+        mpStats[mp].poQ += (+r.poQty || 0);
+        mpStats[mp].dcQ += (+r.dcQty || 0);
+        mpStats[mp].count += 1;
+      });
+      const entries = Object.entries(mpStats).sort((a, b) => b[1].val - a[1].val);
+      const maxVal = Math.max(1, ...entries.map(x => x[1].val));
+
+      mpWrap.innerHTML = `<div class="mp-card">
+        <h4>📊 Marketplace Performance Analytics (Value &amp; Fill Rate %)</h4>
+        ${entries.length ? entries.map(([mp, s]) => {
+          const fill = s.poQ ? Math.round((s.dcQ / s.poQ) * 100) : 0;
+          return `<div class="mp-row">
+            <strong>${esc(mp)}</strong>
+            <div class="mp-bar"><u style="width:${Math.max(4, (s.val / maxVal) * 100)}%"></u></div>
+            <span style="color:var(--ink-2)">Fill: <b>${fill}%</b></span>
+            <b>${fmtINR(round2(s.val))}</b>
+          </div>`;
+        }).join("") : '<p class="lg-edited">Abhi Record Log me data nahi hai.</p>'}
+      </div>`;
+    };
+  }
+
+  // Google Sheets Direct Push (Cloud-synced Webhook URL)
+  let cloudGsheetUrl = "";
+  if (firebase && firebase.apps && firebase.apps.length) {
+    firebase.database().ref(`${ROOT}/settings/gsheetUrl`).on("value", snap => {
+      cloudGsheetUrl = snap.val() || "";
+      const inp = $("admGsheetUrl");
+      if (inp && document.activeElement !== inp) inp.value = cloudGsheetUrl;
+    });
+  }
+
+  const saveGsheetBtn = $("admSaveGsheetBtn");
+  if (saveGsheetBtn) {
+    saveGsheetBtn.addEventListener("click", () => {
+      const url = clean($("admGsheetUrl").value);
+      const msg = $("admGsheetMsg");
+      if (firebase && firebase.apps && firebase.apps.length) {
+        firebase.database().ref(`${ROOT}/settings/gsheetUrl`).set(url).then(() => {
+          if (msg) msg.textContent = url ? "✅ Google Sheet Webhook URL cloud par save ho gaya!" : "URL cleared.";
+          if (window.ugToast) window.ugToast("Google Sheet URL saved to cloud!");
+        });
+      }
+    });
+  }
+
+  const pushGsheetBtn = $("pushGsheetBtn");
+  if (pushGsheetBtn) {
+    pushGsheetBtn.addEventListener("click", async () => {
+      if (!current) return;
+      if (!cloudGsheetUrl) {
+        if (window.ugToast) window.ugToast("Admin Panel → Admin Settings me pehle Google Sheet Web App URL save karein.", "err");
+        return;
+      }
+      const m = current.po.meta, d = current.dc.meta;
+      const payload = {
+        timestamp: new Date().toISOString(),
+        poNumber: m.po_number || "",
+        poDate: m.po_date || "",
+        customer: clean($("lgCust").value) || d.customer || m.customer || "",
+        city: clean($("lgCity").value) || d.city || m.city || "",
+        pincode: digitsOnly($("lgPin").value) || d.pincode || m.pincode || "",
+        poQty: current.totals.poQty,
+        dcQty: current.totals.dcQty,
+        dcDate: d.dc_date || "",
+        dcNumber: d.dc_number || "",
+        predictedValue: current.totals.predicted,
+        actualInvoiceValue: actualInvoiceData ? actualInvoiceData.grandTotal : "",
+        status: current.overall.status
+      };
+      pushGsheetBtn.disabled = true;
+      pushGsheetBtn.textContent = "⏳ Pushing...";
+      try {
+        await fetch(cloudGsheetUrl, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (window.ugToast) window.ugToast("📊 Data sent to Company Google Sheet!");
+        if (window.__ivpLogActivity) window.__ivpLogActivity("export", `Pushed PO ${payload.poNumber} to Google Sheet`, fmtINR(payload.predictedValue));
+      } catch (err) {
+        if (window.ugToast) window.ugToast("Google Sheet push failed: " + err.message, "err");
+      } finally {
+        pushGsheetBtn.disabled = false;
+        pushGsheetBtn.textContent = "📊 Push to Sheet";
+      }
+    });
+  }
 })();
 </script>
 
