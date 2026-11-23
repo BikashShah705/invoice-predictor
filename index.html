@@ -5840,6 +5840,341 @@ maybeRun();
   setInterval(mountSecurityPanels, 2000);
 })();
 </script>
+<script id="ivpShortSkuPeriodAnalytics">
+(function () {
+  const SHORT_LOG_KEY = "ivp_short_qty_details_v1";
+  const SKU_SALES_KEY = "ivp_sku_dc_sales_details_v1";
 
+  let shortRecords = [];
+  let skuSalesRecords = [];
+  try { shortRecords = JSON.parse(localStorage.getItem(SHORT_LOG_KEY) || "[]") || []; } catch (e) {}
+  try { skuSalesRecords = JSON.parse(localStorage.getItem(SKU_SALES_KEY) || "[]") || []; } catch (e) {}
+
+  let activePeriod = "month"; // day | month | quarter | year
+  let activeSkuSearch = "";
+  let activeShortSearch = "";
+  let activeShortSeverity = "all"; // all | short | notshipped
+
+  function parseAnyDate(str) {
+    if (!str) return null;
+    const s = String(str).trim();
+    const dmy = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);
+    if (dmy) return new Date(+dmy[3], +dmy[2] - 1, +dmy[1]);
+    const ymd = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if (ymd) return new Date(+ymd[1], +ymd[2] - 1, +ymd[3]);
+    const dt = new Date(s);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function periodKey(dt, mode) {
+    if (!dt) return "Undated";
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    if (mode === "day") return `${y}-${m}-${d}`;
+    if (mode === "month") return `${y}-${m}`;
+    if (mode === "quarter") return `${y}-Q${Math.floor(dt.getMonth() / 3) + 1}`;
+    return `${y}`;
+  }
+
+  function persistAll() {
+    try { localStorage.setItem(SHORT_LOG_KEY, JSON.stringify(shortRecords)); } catch (e) {}
+    try { localStorage.setItem(SKU_SALES_KEY, JSON.stringify(skuSalesRecords)); } catch (e) {}
+  }
+
+  // Capture item-level Short Qty & SKU DC Sales whenever a PO vs DC result is rendered
+  function captureResultToAnalytics(res) {
+    if (!res || !res.po || !res.dc || !Array.isArray(res.lines)) return;
+    const poNo = res.po.meta.po_number || "";
+    const dcNo = res.dc.meta.dc_number || "";
+    const docDate = res.dc.meta.dc_date || res.po.meta.po_date || new Date().toISOString().slice(0, 10);
+    const cust = res.dc.meta.customer || res.po.meta.customer || "";
+    const runKey = `${normId(poNo)}__${normId(dcNo)}`;
+
+    shortRecords = shortRecords.filter(x => x._runKey !== runKey);
+    skuSalesRecords = skuSalesRecords.filter(x => x._runKey !== runKey);
+
+    res.lines.forEach((L) => {
+      if (L.kind !== "po") return;
+      const poQty = +L.poQty || 0;
+      const dcQty = +L.dcQty || 0;
+      const shortQty = Math.max(0, poQty - dcQty);
+      const unitRate = L.unit != null ? +L.unit : 0;
+      const shortValue = round2(shortQty * unitRate);
+      const shippedValue = round2(dcQty * unitRate);
+      const skuLabel = L.sku || L.viaSku || (L.code ? `CODE:${L.code}` : `EAN:${L.ean || "UNMAPPED"}`);
+      const itemName = L.masterName || L.desc || skuLabel;
+
+      if (dcQty > 0) {
+        skuSalesRecords.push({
+          _runKey: runKey,
+          date: docDate,
+          poNumber: poNo,
+          dcNumber: dcNo,
+          customer: cust,
+          sku: skuLabel,
+          ean: L.ean || "",
+          itemCode: L.code || "",
+          itemName,
+          poQty,
+          dcQty,
+          shippedValue
+        });
+      }
+
+      if (shortQty > 0) {
+        shortRecords.push({
+          _runKey: runKey,
+          date: docDate,
+          poNumber: poNo,
+          dcNumber: dcNo,
+          customer: cust,
+          sku: skuLabel,
+          ean: L.ean || "",
+          itemCode: L.code || "",
+          itemName,
+          poQty,
+          dcQty,
+          shortQty,
+          shortValue,
+          type: dcQty === 0 ? "notshipped" : "short"
+        });
+      }
+    });
+
+    persistAll();
+  }
+
+  // Hook renderResult safely
+  if (typeof renderResult === "function") {
+    const _origRenderResult = renderResult;
+    renderResult = function (res) {
+      _origRenderResult(res);
+      try { captureResultToAnalytics(res); } catch (e) {}
+      renderAnalyticsSuite();
+    };
+  }
+
+  function ensureAnalyticsSection() {
+    const main = document.getElementById("main");
+    if (!main) return null;
+    let sec = document.getElementById("ivpShortAndSkuSuite");
+    if (!sec) {
+      sec = document.createElement("section");
+      sec.id = "ivpShortAndSkuSuite";
+      sec.style.cssText =
+        "margin-top:20px;background:var(--surface,#fff);border:1px solid var(--rule,#cbd5e1);border-radius:16px;padding:18px 22px;display:grid;gap:16px;";
+      sec.innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--rule,#e2e8f0);padding-bottom:10px;">
+          <div>
+            <h3 style="margin:0;font-size:1.1rem;">📉 Short Qty Details &amp; 📦 SKU Sales Movement (Day / Month / Quarter / Year)</h3>
+            <div style="font-size:.8rem;color:var(--ink-2,#475569);">Har item ki short qty, top/fast moving SKUs aur time-period wise summary.</div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;" id="ivpPeriodChips">
+            <button type="button" class="chip" data-per="day" aria-pressed="false">Day</button>
+            <button type="button" class="chip" data-per="month" aria-pressed="true">Month</button>
+            <button type="button" class="chip" data-per="quarter" aria-pressed="false">Quarterly</button>
+            <button type="button" class="chip" data-per="year" aria-pressed="false">Yearly</button>
+            <button type="button" class="btn secondary sm" id="ivpExportAnalyticsXlsx">Download SKU &amp; Short Excel</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
+          <div style="border:1px solid var(--rule,#e2e8f0);border-radius:12px;padding:12px;background:var(--sunken,#f8fafc);">
+            <div style="font-weight:700;font-size:.86rem;margin-bottom:8px;">📊 Short Qty Graph (<span id="ivpShortPerLabel">Month</span>)</div>
+            <div id="ivpShortGraph" class="bars" style="height:125px;"></div>
+          </div>
+          <div style="border:1px solid var(--rule,#e2e8f0);border-radius:12px;padding:12px;background:var(--sunken,#f8fafc);">
+            <div style="font-weight:700;font-size:.86rem;margin-bottom:8px;">🚀 Top / Fast Moving SKUs (DC Qty)</div>
+            <div id="ivpTopSkuGraph"></div>
+          </div>
+        </div>
+
+        <div style="display:grid;gap:8px;">
+          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;">
+            <strong>⚠️ Short Qty Details</strong>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+              <button type="button" class="chip" data-sf="all" aria-pressed="true">All Short</button>
+              <button type="button" class="chip" data-sf="short" aria-pressed="false">Partial Short</button>
+              <button type="button" class="chip" data-sf="notshipped" aria-pressed="false">Not Shipped (0 DC)</button>
+              <input type="search" id="ivpShortSearch" placeholder="Filter SKU, item, PO, DC...">
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:240px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Period</th><th>PO No</th><th>DC No</th><th>SKU</th><th>Item</th>
+                  <th class="num">PO Qty</th><th class="num">DC Qty</th><th class="num">Short Qty</th><th class="num">Short Value</th>
+                </tr>
+              </thead>
+              <tbody id="ivpShortTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="display:grid;gap:8px;">
+          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;">
+            <strong>📦 SKU Sales / DC Qty Movement (<span id="ivpSkuPerLabel">Month</span>)</strong>
+            <input type="search" id="ivpSkuSearch" placeholder="Filter SKU or item name...">
+          </div>
+          <div class="table-wrap" style="max-height:260px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Period</th><th>SKU</th><th>Item</th><th>Velocity</th>
+                  <th class="num">Total PO Qty</th><th class="num">Total DC Qty</th><th class="num">Shipped Value</th>
+                </tr>
+              </thead>
+              <tbody id="ivpSkuTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      main.appendChild(sec);
+
+      sec.querySelectorAll("[data-per]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          activePeriod = btn.dataset.per;
+          sec.querySelectorAll("[data-per]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.per === activePeriod)));
+          renderAnalyticsSuite();
+        });
+      });
+
+      sec.querySelectorAll("[data-sf]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          activeShortSeverity = btn.dataset.sf;
+          sec.querySelectorAll("[data-sf]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.sf === activeShortSeverity)));
+          renderAnalyticsSuite();
+        });
+      });
+
+      document.getElementById("ivpShortSearch").addEventListener("input", e => {
+        activeShortSearch = e.target.value.trim().toLowerCase();
+        renderAnalyticsSuite();
+      });
+
+      document.getElementById("ivpSkuSearch").addEventListener("input", e => {
+        activeSkuSearch = e.target.value.trim().toLowerCase();
+        renderAnalyticsSuite();
+      });
+
+      document.getElementById("ivpExportAnalyticsXlsx").addEventListener("click", () => {
+        const wb = XLSX.utils.book_new();
+        const sRows = [["Period", "Date", "PO Number", "DC Number", "Customer", "SKU", "Item", "PO Qty", "DC Qty", "Short Qty", "Short Value"]]
+          .concat(shortRecords.map(r => [
+            periodKey(parseAnyDate(r.date), activePeriod), r.date, r.poNumber, r.dcNumber, r.customer,
+            r.sku, r.itemName, r.poQty, r.dcQty, r.shortQty, r.shortValue
+          ]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sRows), "Short Qty Details");
+
+        const kRows = [["Period", "SKU", "Item", "Total PO Qty", "Total DC Qty", "Shipped Value"]]
+          .concat(buildSkuAgg().map(x => [x.period, x.sku, x.itemName, x.poQty, x.dcQty, round2(x.shippedValue)]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kRows), "SKU Sales Movement");
+
+        XLSX.writeFile(wb, `Ugaoo_Short_And_SKU_Sales_${activePeriod}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      });
+    }
+    return sec;
+  }
+
+  function buildSkuAgg() {
+    const map = new Map();
+    skuSalesRecords.forEach(r => {
+      const per = periodKey(parseAnyDate(r.date), activePeriod);
+      const key = `${per}__${r.sku}`;
+      const cur = map.get(key) || { period: per, sku: r.sku, itemName: r.itemName, poQty: 0, dcQty: 0, shippedValue: 0 };
+      cur.poQty += (+r.poQty || 0);
+      cur.dcQty += (+r.dcQty || 0);
+      cur.shippedValue += (+r.shippedValue || 0);
+      map.set(key, cur);
+    });
+    return [...map.values()].sort((a, b) => b.dcQty - a.dcQty || b.shippedValue - a.shippedValue);
+  }
+
+  function renderAnalyticsSuite() {
+    const sec = ensureAnalyticsSection();
+    if (!sec) return;
+
+    document.getElementById("ivpShortPerLabel").textContent = activePeriod.toUpperCase();
+    document.getElementById("ivpSkuPerLabel").textContent = activePeriod.toUpperCase();
+
+    // 1. Filter Short Qty rows
+    const filteredShort = shortRecords.filter(r => {
+      if (activeShortSeverity !== "all" && r.type !== activeShortSeverity) return false;
+      if (activeShortSearch) {
+        const hay = `${r.sku} ${r.itemName} ${r.poNumber} ${r.dcNumber} ${r.customer} ${r.ean} ${r.itemCode}`.toLowerCase();
+        if (!hay.includes(activeShortSearch)) return false;
+      }
+      return true;
+    });
+
+    // Short Qty Graph by selected period (Day / Month / Quarter / Year)
+    const perShortMap = new Map();
+    filteredShort.forEach(r => {
+      const p = periodKey(parseAnyDate(r.date), activePeriod);
+      perShortMap.set(p, (perShortMap.get(p) || 0) + (+r.shortQty || 0));
+    });
+    const perEntries = [...perShortMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
+    const maxShort = Math.max(1, ...perEntries.map(x => x[1]));
+    const gEl = document.getElementById("ivpShortGraph");
+    gEl.innerHTML = perEntries.length
+      ? perEntries.map(([p, q]) => `<div title="${p}: Short ${fmtQty(q)}"><b>${fmtQty(q)}</b><u style="height:${Math.max(4, (q / maxShort) * 85)}%"></u><small>${esc(p)}</small></div>`).join("")
+      : '<p class="lg-edited">Is filter mein koi short qty record nahi hai.</p>';
+
+    document.getElementById("ivpShortTbody").innerHTML = filteredShort.length
+      ? filteredShort.map(r => `<tr>
+          <td>${esc(periodKey(parseAnyDate(r.date), activePeriod))}</td>
+          <td class="strong">${esc(r.poNumber)}</td>
+          <td>${esc(r.dcNumber)}</td>
+          <td class="sku">${esc(r.sku)}</td>
+          <td>${esc(r.itemName)}</td>
+          <td class="num">${fmtQty(r.poQty)}</td>
+          <td class="num">${fmtQty(r.dcQty)}</td>
+          <td class="num" style="color:var(--bad);font-weight:700;">${fmtQty(r.shortQty)}</td>
+          <td class="num">${fmtINR(r.shortValue)}</td>
+        </tr>`).join("")
+      : '<tr><td colspan="9" class="no-rows">Koi short qty item nahi mila.</td></tr>';
+
+    // 2. SKU Sales / DC Qty Movement + Fast/Top Moving tag
+    const agg = buildSkuAgg().filter(x => {
+      if (!activeSkuSearch) return true;
+      return `${x.sku} ${x.itemName} ${x.period}`.toLowerCase().includes(activeSkuSearch);
+    });
+    const maxDc = Math.max(1, ...agg.map(x => x.dcQty));
+
+    const topEl = document.getElementById("ivpTopSkuGraph");
+    topEl.innerHTML = agg.slice(0, 5).length
+      ? agg.slice(0, 5).map(x => `<div class="hb">
+          <span title="${esc(x.sku + ' - ' + x.itemName)}">${esc(x.sku)}</span>
+          <i><u style="width:${Math.max(4, (x.dcQty / maxDc) * 100)}%"></u></i>
+          <b>${fmtQty(x.dcQty)} pcs</b>
+        </div>`).join("")
+      : '<p class="lg-edited">PO + DC run karne par SKU movement yahan dikhega.</p>';
+
+    document.getElementById("ivpSkuTbody").innerHTML = agg.length
+      ? agg.map((x, idx) => {
+          const ratio = x.dcQty / maxDc;
+          const vel = idx < 3 || ratio >= 0.65
+            ? `<span class="pill ok">⚡ Fast / Top Moving</span>`
+            : ratio >= 0.25
+              ? `<span class="pill info">Steady Moving</span>`
+              : `<span class="pill warn">Slow Moving</span>`;
+          return `<tr>
+            <td>${esc(x.period)}</td>
+            <td class="sku">${esc(x.sku)}</td>
+            <td>${esc(x.itemName)}</td>
+            <td>${vel}</td>
+            <td class="num">${fmtQty(x.poQty)}</td>
+            <td class="num strong">${fmtQty(x.dcQty)}</td>
+            <td class="num">${fmtINR(round2(x.shippedValue))}</td>
+          </tr>`;
+        }).join("")
+      : '<tr><td colspan="7" class="no-rows">Abhi koi SKU DC sales record nahi hai.</td></tr>';
+  }
+
+  renderAnalyticsSuite();
+})();
+</script>
 </body>
 </html>
