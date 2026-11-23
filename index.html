@@ -5842,6 +5842,7 @@ maybeRun();
 </script>
 <script id="ivpShortSkuPeriodAnalytics">
 (function () {
+  const ROOT = "ivp_v14";
   const SHORT_LOG_KEY = "ivp_short_qty_details_v1";
   const SKU_SALES_KEY = "ivp_sku_dc_sales_details_v1";
 
@@ -5850,10 +5851,10 @@ maybeRun();
   try { shortRecords = JSON.parse(localStorage.getItem(SHORT_LOG_KEY) || "[]") || []; } catch (e) {}
   try { skuSalesRecords = JSON.parse(localStorage.getItem(SKU_SALES_KEY) || "[]") || []; } catch (e) {}
 
-  let activePeriod = "month"; // day | month | quarter | year
-  let activeSkuSearch = "";
-  let activeShortSearch = "";
-  let activeShortSeverity = "all"; // all | short | notshipped
+  // Independent state for Short Qty Dialog
+  const shortState = { period: "month", tab: "summary", severity: "all", q: "" };
+  // Independent state for Sales Qty Dialog
+  const salesState = { period: "month", tab: "summary", velocity: "all", q: "" };
 
   function parseAnyDate(str) {
     if (!str) return null;
@@ -5877,16 +5878,46 @@ maybeRun();
     return `${y}`;
   }
 
-  function persistAll() {
+  function persistAll(pushCloud) {
     try { localStorage.setItem(SHORT_LOG_KEY, JSON.stringify(shortRecords)); } catch (e) {}
     try { localStorage.setItem(SKU_SALES_KEY, JSON.stringify(skuSalesRecords)); } catch (e) {}
+    if (pushCloud && window.firebase && firebase.apps && firebase.apps.length) {
+      try {
+        firebase.database().ref(`${ROOT}/shortQtyLog`).set({ updatedAt: Date.now(), rows: shortRecords }).catch(() => {});
+        firebase.database().ref(`${ROOT}/skuSalesLog`).set({ updatedAt: Date.now(), rows: skuSalesRecords }).catch(() => {});
+      } catch (e) {}
+    }
   }
 
-  // Capture item-level Short Qty & SKU DC Sales whenever a PO vs DC result is rendered
+  // Live Firebase Cloud Sync
+  if (window.firebase && firebase.apps && firebase.apps.length) {
+    try {
+      firebase.database().ref(`${ROOT}/shortQtyLog`).on("value", snap => {
+        const val = snap.val();
+        if (val && Array.isArray(val.rows)) {
+          shortRecords = val.rows;
+          try { localStorage.setItem(SHORT_LOG_KEY, JSON.stringify(shortRecords)); } catch (e) {}
+          updateTopBadges();
+          if (document.getElementById("ivpShortDialog")?.open) renderShortDialog();
+        }
+      });
+      firebase.database().ref(`${ROOT}/skuSalesLog`).on("value", snap => {
+        const val = snap.val();
+        if (val && Array.isArray(val.rows)) {
+          skuSalesRecords = val.rows;
+          try { localStorage.setItem(SKU_SALES_KEY, JSON.stringify(skuSalesRecords)); } catch (e) {}
+          updateTopBadges();
+          if (document.getElementById("ivpSalesDialog")?.open) renderSalesDialog();
+        }
+      });
+    } catch (e) {}
+  }
+
   function captureResultToAnalytics(res) {
     if (!res || !res.po || !res.dc || !Array.isArray(res.lines)) return;
     const poNo = res.po.meta.po_number || "";
     const dcNo = res.dc.meta.dc_number || "";
+    if (!poNo && !dcNo) return;
     const docDate = res.dc.meta.dc_date || res.po.meta.po_date || new Date().toISOString().slice(0, 10);
     const cust = res.dc.meta.customer || res.po.meta.customer || "";
     const runKey = `${normId(poNo)}__${normId(dcNo)}`;
@@ -5894,7 +5925,7 @@ maybeRun();
     shortRecords = shortRecords.filter(x => x._runKey !== runKey);
     skuSalesRecords = skuSalesRecords.filter(x => x._runKey !== runKey);
 
-    res.lines.forEach((L) => {
+    res.lines.forEach(L => {
       if (L.kind !== "po") return;
       const poQty = +L.poQty || 0;
       const dcQty = +L.dcQty || 0;
@@ -5907,273 +5938,607 @@ maybeRun();
 
       if (dcQty > 0) {
         skuSalesRecords.push({
-          _runKey: runKey,
-          date: docDate,
-          poNumber: poNo,
-          dcNumber: dcNo,
-          customer: cust,
-          sku: skuLabel,
-          ean: L.ean || "",
-          itemCode: L.code || "",
-          itemName,
-          poQty,
-          dcQty,
-          shippedValue
+          _runKey: runKey, date: docDate, poNumber: poNo, dcNumber: dcNo, customer: cust,
+          sku: skuLabel, ean: L.ean || "", itemCode: L.code || "", itemName, poQty, dcQty, shippedValue
         });
       }
-
       if (shortQty > 0) {
         shortRecords.push({
-          _runKey: runKey,
-          date: docDate,
-          poNumber: poNo,
-          dcNumber: dcNo,
-          customer: cust,
-          sku: skuLabel,
-          ean: L.ean || "",
-          itemCode: L.code || "",
-          itemName,
-          poQty,
-          dcQty,
-          shortQty,
-          shortValue,
+          _runKey: runKey, date: docDate, poNumber: poNo, dcNumber: dcNo, customer: cust,
+          sku: skuLabel, ean: L.ean || "", itemCode: L.code || "", itemName, poQty, dcQty, shortQty, shortValue,
           type: dcQty === 0 ? "notshipped" : "short"
         });
       }
     });
 
-    persistAll();
+    persistAll(true);
+    updateTopBadges();
   }
 
-  // Hook renderResult safely
+  // Hook BOTH compare() (captures Bulk Batch + Single) and renderResult()
+  if (typeof compare === "function") {
+    const _origCompare = compare;
+    compare = function (po, dc) {
+      const res = _origCompare(po, dc);
+      try { captureResultToAnalytics(res); } catch (e) {}
+      return res;
+    };
+  }
   if (typeof renderResult === "function") {
     const _origRenderResult = renderResult;
     renderResult = function (res) {
       _origRenderResult(res);
-      try { captureResultToAnalytics(res); } catch (e) {}
-      renderAnalyticsSuite();
+      if (document.getElementById("ivpShortDialog")?.open) renderShortDialog();
+      if (document.getElementById("ivpSalesDialog")?.open) renderSalesDialog();
     };
   }
 
-  function ensureAnalyticsSection() {
-    const main = document.getElementById("main");
-    if (!main) return null;
-    let sec = document.getElementById("ivpShortAndSkuSuite");
-    if (!sec) {
-      sec = document.createElement("section");
-      sec.id = "ivpShortAndSkuSuite";
-      sec.style.cssText =
-        "margin-top:20px;background:var(--surface,#fff);border:1px solid var(--rule,#cbd5e1);border-radius:16px;padding:18px 22px;display:grid;gap:16px;";
-      sec.innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--rule,#e2e8f0);padding-bottom:10px;">
-          <div>
-            <h3 style="margin:0;font-size:1.1rem;">📉 Short Qty Details &amp; 📦 SKU Sales Movement (Day / Month / Quarter / Year)</h3>
-            <div style="font-size:.8rem;color:var(--ink-2,#475569);">Har item ki short qty, top/fast moving SKUs aur time-period wise summary.</div>
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;" id="ivpPeriodChips">
-            <button type="button" class="chip" data-per="day" aria-pressed="false">Day</button>
-            <button type="button" class="chip" data-per="month" aria-pressed="true">Month</button>
-            <button type="button" class="chip" data-per="quarter" aria-pressed="false">Quarterly</button>
-            <button type="button" class="chip" data-per="year" aria-pressed="false">Yearly</button>
-            <button type="button" class="btn secondary sm" id="ivpExportAnalyticsXlsx">Download SKU &amp; Short Excel</button>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;">
-          <div style="border:1px solid var(--rule,#e2e8f0);border-radius:12px;padding:12px;background:var(--sunken,#f8fafc);">
-            <div style="font-weight:700;font-size:.86rem;margin-bottom:8px;">📊 Short Qty Graph (<span id="ivpShortPerLabel">Month</span>)</div>
-            <div id="ivpShortGraph" class="bars" style="height:125px;"></div>
-          </div>
-          <div style="border:1px solid var(--rule,#e2e8f0);border-radius:12px;padding:12px;background:var(--sunken,#f8fafc);">
-            <div style="font-weight:700;font-size:.86rem;margin-bottom:8px;">🚀 Top / Fast Moving SKUs (DC Qty)</div>
-            <div id="ivpTopSkuGraph"></div>
-          </div>
-        </div>
-
-        <div style="display:grid;gap:8px;">
-          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;">
-            <strong>⚠️ Short Qty Details</strong>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-              <button type="button" class="chip" data-sf="all" aria-pressed="true">All Short</button>
-              <button type="button" class="chip" data-sf="short" aria-pressed="false">Partial Short</button>
-              <button type="button" class="chip" data-sf="notshipped" aria-pressed="false">Not Shipped (0 DC)</button>
-              <input type="search" id="ivpShortSearch" placeholder="Filter SKU, item, PO, DC...">
-            </div>
-          </div>
-          <div class="table-wrap" style="max-height:240px;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Period</th><th>PO No</th><th>DC No</th><th>SKU</th><th>Item</th>
-                  <th class="num">PO Qty</th><th class="num">DC Qty</th><th class="num">Short Qty</th><th class="num">Short Value</th>
-                </tr>
-              </thead>
-              <tbody id="ivpShortTbody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style="display:grid;gap:8px;">
-          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;">
-            <strong>📦 SKU Sales / DC Qty Movement (<span id="ivpSkuPerLabel">Month</span>)</strong>
-            <input type="search" id="ivpSkuSearch" placeholder="Filter SKU or item name...">
-          </div>
-          <div class="table-wrap" style="max-height:260px;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Period</th><th>SKU</th><th>Item</th><th>Velocity</th>
-                  <th class="num">Total PO Qty</th><th class="num">Total DC Qty</th><th class="num">Shipped Value</th>
-                </tr>
-              </thead>
-              <tbody id="ivpSkuTbody"></tbody>
-            </table>
-          </div>
-        </div>
-      `;
-      main.appendChild(sec);
-
-      sec.querySelectorAll("[data-per]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          activePeriod = btn.dataset.per;
-          sec.querySelectorAll("[data-per]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.per === activePeriod)));
-          renderAnalyticsSuite();
-        });
-      });
-
-      sec.querySelectorAll("[data-sf]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          activeShortSeverity = btn.dataset.sf;
-          sec.querySelectorAll("[data-sf]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.sf === activeShortSeverity)));
-          renderAnalyticsSuite();
-        });
-      });
-
-      document.getElementById("ivpShortSearch").addEventListener("input", e => {
-        activeShortSearch = e.target.value.trim().toLowerCase();
-        renderAnalyticsSuite();
-      });
-
-      document.getElementById("ivpSkuSearch").addEventListener("input", e => {
-        activeSkuSearch = e.target.value.trim().toLowerCase();
-        renderAnalyticsSuite();
-      });
-
-      document.getElementById("ivpExportAnalyticsXlsx").addEventListener("click", () => {
-        const wb = XLSX.utils.book_new();
-        const sRows = [["Period", "Date", "PO Number", "DC Number", "Customer", "SKU", "Item", "PO Qty", "DC Qty", "Short Qty", "Short Value"]]
-          .concat(shortRecords.map(r => [
-            periodKey(parseAnyDate(r.date), activePeriod), r.date, r.poNumber, r.dcNumber, r.customer,
-            r.sku, r.itemName, r.poQty, r.dcQty, r.shortQty, r.shortValue
-          ]));
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sRows), "Short Qty Details");
-
-        const kRows = [["Period", "SKU", "Item", "Total PO Qty", "Total DC Qty", "Shipped Value"]]
-          .concat(buildSkuAgg().map(x => [x.period, x.sku, x.itemName, x.poQty, x.dcQty, round2(x.shippedValue)]));
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kRows), "SKU Sales Movement");
-
-        XLSX.writeFile(wb, `Ugaoo_Short_And_SKU_Sales_${activePeriod}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      });
-    }
-    return sec;
+  // Helpers for PO-level data from existing Record Log
+  function getPoLogRows() {
+    if (typeof logRows === "undefined" || !Array.isArray(logRows)) return [];
+    return logRows.map(r => {
+      const pq = +r.poQty || 0, dq = +r.dcQty || 0;
+      return {
+        date: r.dcDate || r.poDate || "",
+        poNumber: r.poNumber || "",
+        dcNumber: r.dcNumber || "",
+        customer: r.customer || "",
+        city: r.city || "",
+        poQty: pq,
+        dcQty: dq,
+        shortQty: Math.max(0, pq - dq),
+        predicted: +r.predicted || 0,
+        fillPct: pq ? Math.round((dq / pq) * 100) : 0
+      };
+    });
   }
 
-  function buildSkuAgg() {
+  function buildShortSkuSummary(periodMode, severityFilter) {
+    const map = new Map();
+    shortRecords.forEach(r => {
+      if (severityFilter !== "all" && r.type !== severityFilter) return;
+      const per = periodKey(parseAnyDate(r.date), periodMode);
+      const key = `${per}__${r.sku}`;
+      const cur = map.get(key) || { period: per, sku: r.sku, itemName: r.itemName, poQty: 0, dcQty: 0, shortQty: 0, shortValue: 0, pos: new Set() };
+      cur.poQty += (+r.poQty || 0);
+      cur.dcQty += (+r.dcQty || 0);
+      cur.shortQty += (+r.shortQty || 0);
+      cur.shortValue += (+r.shortValue || 0);
+      if (r.poNumber) cur.pos.add(r.poNumber);
+      map.set(key, cur);
+    });
+    return [...map.values()].map(x => ({ ...x, poList: [...x.pos].join(", "), poCount: x.pos.size }))
+      .sort((a, b) => b.shortQty - a.shortQty || b.shortValue - a.shortValue);
+  }
+
+  function buildSalesSkuSummary(periodMode) {
     const map = new Map();
     skuSalesRecords.forEach(r => {
-      const per = periodKey(parseAnyDate(r.date), activePeriod);
+      const per = periodKey(parseAnyDate(r.date), periodMode);
       const key = `${per}__${r.sku}`;
-      const cur = map.get(key) || { period: per, sku: r.sku, itemName: r.itemName, poQty: 0, dcQty: 0, shippedValue: 0 };
+      const cur = map.get(key) || { period: per, sku: r.sku, itemName: r.itemName, poQty: 0, dcQty: 0, shippedValue: 0, pos: new Set() };
       cur.poQty += (+r.poQty || 0);
       cur.dcQty += (+r.dcQty || 0);
       cur.shippedValue += (+r.shippedValue || 0);
+      if (r.poNumber) cur.pos.add(r.poNumber);
       map.set(key, cur);
     });
-    return [...map.values()].sort((a, b) => b.dcQty - a.dcQty || b.shippedValue - a.shippedValue);
+    const list = [...map.values()].map(x => ({
+      ...x,
+      poList: [...x.pos].join(", "),
+      poCount: x.pos.size,
+      fillPct: x.poQty ? Math.round((x.dcQty / x.poQty) * 100) : 100
+    })).sort((a, b) => b.dcQty - a.dcQty || b.shippedValue - a.shippedValue);
+
+    const maxDc = Math.max(1, ...list.map(x => x.dcQty));
+    list.forEach((x, idx) => {
+      const ratio = x.dcQty / maxDc;
+      x.velCode = (idx < 5 || ratio >= 0.6) ? "fast" : (ratio >= 0.25 ? "steady" : "slow");
+    });
+    return list;
   }
 
-  function renderAnalyticsSuite() {
-    const sec = ensureAnalyticsSection();
-    if (!sec) return;
+  function updateTopBadges() {
+    const poLogs = getPoLogRows();
+    const sc = document.getElementById("shortTopCnt");
+    const slc = document.getElementById("salesTopCnt");
+    if (sc) sc.textContent = shortRecords.length ? `${shortRecords.length}` : `${poLogs.filter(x => x.shortQty > 0).length} POs`;
+    if (slc) slc.textContent = skuSalesRecords.length ? `${skuSalesRecords.length}` : `${poLogs.length} POs`;
+  }
 
-    document.getElementById("ivpShortPerLabel").textContent = activePeriod.toUpperCase();
-    document.getElementById("ivpSkuPerLabel").textContent = activePeriod.toUpperCase();
+  function ensureButtonsAndDialogs() {
+    const openLogBtn = document.getElementById("openLog");
+    if (openLogBtn && !document.getElementById("openShortQtyBtn")) {
+      const shortBtn = document.createElement("button");
+      shortBtn.type = "button";
+      shortBtn.id = "openShortQtyBtn";
+      shortBtn.className = "btn secondary";
+      shortBtn.innerHTML = '📉 Short Qty (<span id="shortTopCnt">0</span>)';
+      shortBtn.addEventListener("click", () => {
+        if (!shortRecords.length && getPoLogRows().some(x => x.shortQty > 0)) shortState.tab = "poLog";
+        renderShortDialog();
+        document.getElementById("ivpShortDialog").showModal();
+      });
 
-    // 1. Filter Short Qty rows
-    const filteredShort = shortRecords.filter(r => {
-      if (activeShortSeverity !== "all" && r.type !== activeShortSeverity) return false;
-      if (activeShortSearch) {
-        const hay = `${r.sku} ${r.itemName} ${r.poNumber} ${r.dcNumber} ${r.customer} ${r.ean} ${r.itemCode}`.toLowerCase();
-        if (!hay.includes(activeShortSearch)) return false;
-      }
+      const salesBtn = document.createElement("button");
+      salesBtn.type = "button";
+      salesBtn.id = "openSalesQtyBtn";
+      salesBtn.className = "btn secondary";
+      salesBtn.innerHTML = '📦 Sales Qty (<span id="salesTopCnt">0</span>)';
+      salesBtn.addEventListener("click", () => {
+        if (!skuSalesRecords.length && getPoLogRows().length) salesState.tab = "poLog";
+        renderSalesDialog();
+        document.getElementById("ivpSalesDialog").showModal();
+      });
+
+      openLogBtn.after(shortBtn, salesBtn);
+    }
+
+    // ==================== DIALOG 1: DEDICATED SHORT QTY ====================
+    if (!document.getElementById("ivpShortDialog")) {
+      const dlg = document.createElement("dialog");
+      dlg.id = "ivpShortDialog";
+      dlg.style.cssText = "width:min(1380px,calc(100vw - 20px));max-height:calc(100vh - 20px);";
+      dlg.innerHTML = `
+        <div class="md-box" style="max-height:calc(100vh - 24px);overflow:auto;">
+          <div class="md-head">
+            <div>
+              <h2 style="margin:0;">📉 Short Qty Analytics — Summary &amp; Detailed View (With PO)</h2>
+              <div style="font-size:.82rem;color:var(--ink-2);">SKU-wise Short Summary, PO-wise Detailed View, Graphs &amp; Day/Month/Quarterly/Yearly Filter</div>
+            </div>
+            <div class="actions">
+              <button type="button" class="btn secondary sm" id="ivpShortExportBtn">📥 Download Short Qty Excel</button>
+              <button type="button" class="btn quiet sm" id="ivpShortCloseBtn">Close</button>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--rule);padding-bottom:10px;">
+            <div class="chips">
+              <button type="button" class="chip" data-stab="summary" aria-pressed="true">📊 Short Qty Summary (SKU-Wise)</button>
+              <button type="button" class="chip" data-stab="detail" aria-pressed="false">📋 Detailed View (With PO Number)</button>
+              <button type="button" class="chip" data-stab="poLog" aria-pressed="false">🗂️ PO-Wise Short Log (All Logged)</button>
+            </div>
+            <div class="chips">
+              <button type="button" class="chip" data-sper="day" aria-pressed="false">Day</button>
+              <button type="button" class="chip" data-sper="month" aria-pressed="true">Month</button>
+              <button type="button" class="chip" data-sper="quarter" aria-pressed="false">Quarterly</button>
+              <button type="button" class="chip" data-sper="year" aria-pressed="false">Yearly</button>
+            </div>
+          </div>
+
+          <div id="ivpShortKpis" class="adm-kpis"></div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">
+            <div class="lg-card">
+              <h4>📊 Short Qty Trend (<span id="ivpShortPerLbl">MONTH</span>)</h4>
+              <div id="ivpShortTrendGraph" class="bars" style="height:130px;"></div>
+            </div>
+            <div class="lg-card">
+              <h4>⚠️ Top Most Short-Shipped SKUs</h4>
+              <div id="ivpTopShortSkuGraph"></div>
+            </div>
+          </div>
+
+          <div class="log-tools">
+            <div class="chips">
+              <button type="button" class="chip" data-ssev="all" aria-pressed="true">All Short</button>
+              <button type="button" class="chip" data-ssev="short" aria-pressed="false">Partial Short</button>
+              <button type="button" class="chip" data-ssev="notshipped" aria-pressed="false">Not Shipped (0 DC)</button>
+            </div>
+            <input type="search" id="ivpShortSearchInp" placeholder="Search PO Number, DC, SKU, Item, Customer...">
+          </div>
+
+          <div id="ivpShortPane-summary">
+            <div class="table-wrap md-table" style="max-height:42vh;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Period</th><th>SKU</th><th>Item Name</th><th>Affected POs</th>
+                    <th class="num">Total PO Qty</th><th class="num">Total DC Qty</th>
+                    <th class="num">Total Short Qty</th><th class="num">Short Lost Value</th>
+                  </tr>
+                </thead>
+                <tbody id="ivpShortSumTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="ivpShortPane-detail" hidden>
+            <div class="table-wrap md-table" style="max-height:42vh;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Period</th><th>Date</th><th>PO Number</th><th>DC Number</th><th>Customer</th>
+                    <th>SKU</th><th>Item Name</th><th>Type</th>
+                    <th class="num">PO Qty</th><th class="num">DC Qty</th><th class="num">Short Qty</th><th class="num">Short Value</th>
+                  </tr>
+                </thead>
+                <tbody id="ivpShortDetTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="ivpShortPane-poLog" hidden>
+            <div class="table-wrap md-table" style="max-height:42vh;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Period</th><th>Date</th><th>PO Number</th><th>DC Number</th><th>Customer</th><th>City</th>
+                    <th class="num">PO Qty</th><th class="num">DC Qty</th><th class="num">Short Qty</th><th class="num">Fill %</th>
+                  </tr>
+                </thead>
+                <tbody id="ivpShortPoLogTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(dlg);
+      dlg.querySelector("#ivpShortCloseBtn").addEventListener("click", () => dlg.close());
+      dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+      dlg.querySelectorAll("[data-stab]").forEach(b => b.addEventListener("click", () => { shortState.tab = b.dataset.stab; renderShortDialog(); }));
+      dlg.querySelectorAll("[data-sper]").forEach(b => b.addEventListener("click", () => { shortState.period = b.dataset.sper; renderShortDialog(); }));
+      dlg.querySelectorAll("[data-ssev]").forEach(b => b.addEventListener("click", () => { shortState.severity = b.dataset.ssev; renderShortDialog(); }));
+      dlg.querySelector("#ivpShortSearchInp").addEventListener("input", e => { shortState.q = e.target.value.trim().toLowerCase(); renderShortDialog(); });
+      dlg.querySelector("#ivpShortExportBtn").addEventListener("click", () => {
+        const wb = XLSX.utils.book_new();
+        const sumData = [["Period", "SKU", "Item Name", "PO Count", "Affected PO Numbers", "Total PO Qty", "Total DC Qty", "Total Short Qty", "Short Lost Value"]]
+          .concat(buildShortSkuSummary(shortState.period, shortState.severity).map(x => [x.period, x.sku, x.itemName, x.poCount, x.poList, x.poQty, x.dcQty, x.shortQty, round2(x.shortValue)]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Short SKU Summary");
+
+        const detData = [["Period", "Date", "PO Number", "DC Number", "Customer", "SKU", "Item Name", "Type", "PO Qty", "DC Qty", "Short Qty", "Short Value"]]
+          .concat(shortRecords.map(r => [periodKey(parseAnyDate(r.date), shortState.period), r.date, r.poNumber, r.dcNumber, r.customer, r.sku, r.itemName, r.type, r.poQty, r.dcQty, r.shortQty, r.shortValue]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detData), "Short Detail With PO");
+
+        const poData = [["Period", "Date", "PO Number", "DC Number", "Customer", "City", "PO Qty", "DC Qty", "Short Qty", "Fill %"]]
+          .concat(getPoLogRows().filter(x => x.shortQty > 0).map(r => [periodKey(parseAnyDate(r.date), shortState.period), r.date, r.poNumber, r.dcNumber, r.customer, r.city, r.poQty, r.dcQty, r.shortQty, r.fillPct + "%"]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(poData), "PO-Wise Short Log");
+
+        XLSX.writeFile(wb, `Ugaoo_Short_Qty_Report_${shortState.period}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      });
+    }
+
+    // ==================== DIALOG 2: DEDICATED SALES QTY ====================
+    if (!document.getElementById("ivpSalesDialog")) {
+      const dlg = document.createElement("dialog");
+      dlg.id = "ivpSalesDialog";
+      dlg.style.cssText = "width:min(1380px,calc(100vw - 20px));max-height:calc(100vh - 20px);";
+      dlg.innerHTML = `
+        <div class="md-box" style="max-height:calc(100vh - 24px);overflow:auto;">
+          <div class="md-head">
+            <div>
+              <h2 style="margin:0;">📦 Sales Qty &amp; SKU Movement — Summary &amp; Detailed View (With PO)</h2>
+              <div style="font-size:.82rem;color:var(--ink-2);">Top Moving / Fast Moving SKUs, Har SKU ki Shipped Qty, PO-Wise Sales Details &amp; Period Graphs</div>
+            </div>
+            <div class="actions">
+              <button type="button" class="btn secondary sm" id="ivpSalesExportBtn">📥 Download Sales Qty Excel</button>
+              <button type="button" class="btn quiet sm" id="ivpSalesCloseBtn">Close</button>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--rule);padding-bottom:10px;">
+            <div class="chips">
+              <button type="button" class="chip" data-ltab="summary" aria-pressed="true">🚀 Sales Summary (SKU-Wise &amp; Fast Moving)</button>
+              <button type="button" class="chip" data-ltab="detail" aria-pressed="false">📋 Detailed View (With PO Number)</button>
+              <button type="button" class="chip" data-ltab="poLog" aria-pressed="false">🗂️ PO-Wise Sales Log (All Logged)</button>
+            </div>
+            <div class="chips">
+              <button type="button" class="chip" data-lper="day" aria-pressed="false">Day</button>
+              <button type="button" class="chip" data-lper="month" aria-pressed="true">Month</button>
+              <button type="button" class="chip" data-lper="quarter" aria-pressed="false">Quarterly</button>
+              <button type="button" class="chip" data-lper="year" aria-pressed="false">Yearly</button>
+            </div>
+          </div>
+
+          <div id="ivpSalesKpis" class="adm-kpis"></div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">
+            <div class="lg-card">
+              <h4>📊 Sales DC Qty Trend (<span id="ivpSalesPerLbl">MONTH</span>)</h4>
+              <div id="ivpSalesTrendGraph" class="bars" style="height:130px;"></div>
+            </div>
+            <div class="lg-card">
+              <h4>🚀 Top / Fast Moving SKUs (DC Qty)</h4>
+              <div id="ivpTopSalesSkuGraph"></div>
+            </div>
+          </div>
+
+          <div class="log-tools">
+            <div class="chips">
+              <button type="button" class="chip" data-lvel="all" aria-pressed="true">All Velocity</button>
+              <button type="button" class="chip" data-lvel="fast" aria-pressed="false">⚡ Top / Fast Moving</button>
+              <button type="button" class="chip" data-lvel="steady" aria-pressed="false">Steady Moving</button>
+              <button type="button" class="chip" data-lvel="slow" aria-pressed="false">Slow Moving</button>
+            </div>
+            <input type="search" id="ivpSalesSearchInp" placeholder="Search PO Number, DC, SKU, Item, Customer...">
+          </div>
+
+          <div id="ivpSalesPane-summary">
+            <div class="table-wrap md-table" style="max-height:42vh;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Period</th><th>SKU</th><th>Item Name</th><th>Velocity</th><th>PO Numbers</th>
+                    <th class="num">Total PO Qty</th><th class="num">Sales DC Qty</th><th class="num">Fill %</th><th class="num">Shipped Value</th>
+                  </tr>
+                </thead>
+                <tbody id="ivpSalesSumTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="ivpSalesPane-detail" hidden>
+            <div class="table-wrap md-table" style="max-height:42vh;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Period</th><th>Date</th><th>PO Number</th><th>DC Number</th><th>Customer</th>
+                    <th>SKU</th><th>Item Name</th>
+                    <th class="num">PO Qty</th><th class="num">Sales DC Qty</th><th class="num">Shipped Value</th>
+                  </tr>
+                </thead>
+                <tbody id="ivpSalesDetTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="ivpSalesPane-poLog" hidden>
+            <div class="table-wrap md-table" style="max-height:42vh;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Period</th><th>Date</th><th>PO Number</th><th>DC Number</th><th>Customer</th><th>City</th>
+                    <th class="num">PO Qty</th><th class="num">Sales DC Qty</th><th class="num">Fill %</th><th class="num">Predicted Value</th>
+                  </tr>
+                </thead>
+                <tbody id="ivpSalesPoLogTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(dlg);
+      dlg.querySelector("#ivpSalesCloseBtn").addEventListener("click", () => dlg.close());
+      dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+      dlg.querySelectorAll("[data-ltab]").forEach(b => b.addEventListener("click", () => { salesState.tab = b.dataset.ltab; renderSalesDialog(); }));
+      dlg.querySelectorAll("[data-lper]").forEach(b => b.addEventListener("click", () => { salesState.period = b.dataset.lper; renderSalesDialog(); }));
+      dlg.querySelectorAll("[data-lvel]").forEach(b => b.addEventListener("click", () => { salesState.velocity = b.dataset.lvel; renderSalesDialog(); }));
+      dlg.querySelector("#ivpSalesSearchInp").addEventListener("input", e => { salesState.q = e.target.value.trim().toLowerCase(); renderSalesDialog(); });
+      dlg.querySelector("#ivpSalesExportBtn").addEventListener("click", () => {
+        const wb = XLSX.utils.book_new();
+        const sumData = [["Period", "SKU", "Item Name", "Velocity", "PO Count", "PO Numbers", "Total PO Qty", "Sales DC Qty", "Fill %", "Shipped Value"]]
+          .concat(buildSalesSkuSummary(salesState.period).map(x => [x.period, x.sku, x.itemName, x.velCode.toUpperCase(), x.poCount, x.poList, x.poQty, x.dcQty, x.fillPct + "%", round2(x.shippedValue)]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Sales SKU Summary");
+
+        const detData = [["Period", "Date", "PO Number", "DC Number", "Customer", "SKU", "Item Name", "PO Qty", "Sales DC Qty", "Shipped Value"]]
+          .concat(skuSalesRecords.map(r => [periodKey(parseAnyDate(r.date), salesState.period), r.date, r.poNumber, r.dcNumber, r.customer, r.sku, r.itemName, r.poQty, r.dcQty, r.shippedValue]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detData), "Sales Detail With PO");
+
+        const poData = [["Period", "Date", "PO Number", "DC Number", "Customer", "City", "PO Qty", "Sales DC Qty", "Fill %", "Predicted Value"]]
+          .concat(getPoLogRows().map(r => [periodKey(parseAnyDate(r.date), salesState.period), r.date, r.poNumber, r.dcNumber, r.customer, r.city, r.poQty, r.dcQty, r.fillPct + "%", r.predicted]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(poData), "PO-Wise Sales Log");
+
+        XLSX.writeFile(wb, `Ugaoo_Sales_Qty_Report_${salesState.period}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      });
+    }
+    updateTopBadges();
+  }
+
+  // ==================== RENDER SHORT QTY DIALOG ====================
+  function renderShortDialog() {
+    const dlg = document.getElementById("ivpShortDialog");
+    if (!dlg) return;
+    dlg.querySelectorAll("[data-stab]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.stab === shortState.tab)));
+    dlg.querySelectorAll("[data-sper]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.sper === shortState.period)));
+    dlg.querySelectorAll("[data-ssev]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.ssev === shortState.severity)));
+    ["summary", "detail", "poLog"].forEach(t => { document.getElementById("ivpShortPane-" + t).hidden = (t !== shortState.tab); });
+    document.getElementById("ivpShortPerLbl").textContent = shortState.period.toUpperCase();
+
+    const poShortLogs = getPoLogRows().filter(x => x.shortQty > 0);
+    const skuSum = buildShortSkuSummary(shortState.period, shortState.severity);
+    const q = shortState.q;
+
+    const totalPoShort = poShortLogs.reduce((a, r) => a + r.shortQty, 0);
+    const totalItemShort = shortRecords.reduce((a, r) => a + (+r.shortQty || 0), 0);
+    const totalShortVal = round2(shortRecords.reduce((a, r) => a + (+r.shortValue || 0), 0));
+    const notShippedCnt = shortRecords.filter(r => r.type === "notshipped").length;
+
+    document.getElementById("ivpShortKpis").innerHTML = `
+      <div class="adm-kpi"><small>POs With Short Qty</small><b>${poShortLogs.length}</b></div>
+      <div class="adm-kpi"><small>Total Short Qty (Log)</small><b style="color:var(--bad)">${fmtQty(totalPoShort)} pcs</b></div>
+      <div class="adm-kpi"><small>SKU Short Qty Tracked</small><b>${fmtQty(totalItemShort)} pcs</b></div>
+      <div class="adm-kpi"><small>Not Shipped (0 DC)</small><b style="color:var(--warn)">${notShippedCnt} lines</b></div>
+      <div class="adm-kpi"><small>Short Lost Value</small><b style="color:var(--bad)">${fmtINR(totalShortVal)}</b></div>
+    `;
+
+    // Trend Graph
+    const trendSrc = shortRecords.length ? shortRecords : poShortLogs;
+    const tMap = new Map();
+    trendSrc.forEach(r => {
+      const p = periodKey(parseAnyDate(r.date), shortState.period);
+      tMap.set(p, (tMap.get(p) || 0) + (+r.shortQty || 0));
+    });
+    const tEnt = [...tMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
+    const maxT = Math.max(1, ...tEnt.map(x => x[1]));
+    document.getElementById("ivpShortTrendGraph").innerHTML = tEnt.length
+      ? tEnt.map(([p, v]) => `<div title="${p}: ${fmtQty(v)} pcs short"><b>${fmtQty(v)}</b><u style="height:${Math.max(4, (v / maxT) * 84)}%"></u><small>${esc(p)}</small></div>`).join("")
+      : '<p class="lg-edited">Abhi koi short qty data nahi hai.</p>';
+
+    // Top Shorted SKUs Graph
+    const maxS = Math.max(1, ...skuSum.map(x => x.shortQty));
+    document.getElementById("ivpTopShortSkuGraph").innerHTML = skuSum.slice(0, 6).length
+      ? skuSum.slice(0, 6).map(x => `<div class="hb"><span title="${esc(x.sku + ' - ' + x.itemName)}">${esc(x.sku)}</span><i><u style="width:${Math.max(4, (x.shortQty / maxS) * 100)}%;background:linear-gradient(90deg,#f59e0b,#dc2626)"></u></i><b>${fmtQty(x.shortQty)} pcs</b></div>`).join("")
+      : '<p class="lg-edited">Naya PO + DC run karein — har SKU ki short qty graph yahan dikhegi.</p>';
+
+    // Table 1: SKU-Wise Short Summary
+    const visSum = skuSum.filter(x => !q || `${x.sku} ${x.itemName} ${x.poList} ${x.period}`.toLowerCase().includes(q));
+    document.getElementById("ivpShortSumTbody").innerHTML = visSum.length
+      ? visSum.map(x => `<tr>
+          <td>${esc(x.period)}</td>
+          <td class="sku">${esc(x.sku)}</td>
+          <td>${esc(x.itemName)}</td>
+          <td style="font-size:.78rem;max-width:220px;overflow-wrap:anywhere;"><b>${x.poCount} PO(s):</b> ${esc(x.poList)}</td>
+          <td class="num">${fmtQty(x.poQty)}</td>
+          <td class="num">${fmtQty(x.dcQty)}</td>
+          <td class="num" style="color:var(--bad);font-weight:700;">${fmtQty(x.shortQty)}</td>
+          <td class="num">${fmtINR(round2(x.shortValue))}</td>
+        </tr>`).join("")
+      : '<tr><td colspan="8" class="no-rows">SKU-level summary ke liye PO + DC run karein (ya "PO-Wise Short Log" tab dekhein).</td></tr>';
+
+    // Table 2: Detailed View with PO Number
+    const visDet = shortRecords.filter(r => {
+      if (shortState.severity !== "all" && r.type !== shortState.severity) return false;
+      if (q && !`${r.poNumber} ${r.dcNumber} ${r.customer} ${r.sku} ${r.itemName} ${r.ean} ${r.date}`.toLowerCase().includes(q)) return false;
       return true;
     });
-
-    // Short Qty Graph by selected period (Day / Month / Quarter / Year)
-    const perShortMap = new Map();
-    filteredShort.forEach(r => {
-      const p = periodKey(parseAnyDate(r.date), activePeriod);
-      perShortMap.set(p, (perShortMap.get(p) || 0) + (+r.shortQty || 0));
-    });
-    const perEntries = [...perShortMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
-    const maxShort = Math.max(1, ...perEntries.map(x => x[1]));
-    const gEl = document.getElementById("ivpShortGraph");
-    gEl.innerHTML = perEntries.length
-      ? perEntries.map(([p, q]) => `<div title="${p}: Short ${fmtQty(q)}"><b>${fmtQty(q)}</b><u style="height:${Math.max(4, (q / maxShort) * 85)}%"></u><small>${esc(p)}</small></div>`).join("")
-      : '<p class="lg-edited">Is filter mein koi short qty record nahi hai.</p>';
-
-    document.getElementById("ivpShortTbody").innerHTML = filteredShort.length
-      ? filteredShort.map(r => `<tr>
-          <td>${esc(periodKey(parseAnyDate(r.date), activePeriod))}</td>
+    document.getElementById("ivpShortDetTbody").innerHTML = visDet.length
+      ? visDet.map(r => `<tr>
+          <td>${esc(periodKey(parseAnyDate(r.date), shortState.period))}</td>
+          <td>${esc(r.date)}</td>
           <td class="strong">${esc(r.poNumber)}</td>
           <td>${esc(r.dcNumber)}</td>
+          <td>${esc(r.customer)}</td>
           <td class="sku">${esc(r.sku)}</td>
           <td>${esc(r.itemName)}</td>
+          <td><span class="pill ${r.type === "notshipped" ? "review" : "warn"}">${r.type === "notshipped" ? "Not Shipped" : "Partial Short"}</span></td>
           <td class="num">${fmtQty(r.poQty)}</td>
           <td class="num">${fmtQty(r.dcQty)}</td>
           <td class="num" style="color:var(--bad);font-weight:700;">${fmtQty(r.shortQty)}</td>
           <td class="num">${fmtINR(r.shortValue)}</td>
         </tr>`).join("")
-      : '<tr><td colspan="9" class="no-rows">Koi short qty item nahi mila.</td></tr>';
+      : '<tr><td colspan="12" class="no-rows">Koi item-level short record nahi mila.</td></tr>';
 
-    // 2. SKU Sales / DC Qty Movement + Fast/Top Moving tag
-    const agg = buildSkuAgg().filter(x => {
-      if (!activeSkuSearch) return true;
-      return `${x.sku} ${x.itemName} ${x.period}`.toLowerCase().includes(activeSkuSearch);
+    // Table 3: PO-Wise Short Log (from all 53+ logged records)
+    const visPo = poShortLogs.filter(r => !q || `${r.poNumber} ${r.dcNumber} ${r.customer} ${r.city} ${r.date}`.toLowerCase().includes(q));
+    document.getElementById("ivpShortPoLogTbody").innerHTML = visPo.length
+      ? visPo.map(r => `<tr>
+          <td>${esc(periodKey(parseAnyDate(r.date), shortState.period))}</td>
+          <td>${esc(r.date)}</td>
+          <td class="strong">${esc(r.poNumber)}</td>
+          <td>${esc(r.dcNumber)}</td>
+          <td>${esc(r.customer)}</td>
+          <td>${esc(r.city)}</td>
+          <td class="num">${fmtQty(r.poQty)}</td>
+          <td class="num">${fmtQty(r.dcQty)}</td>
+          <td class="num" style="color:var(--bad);font-weight:700;">${fmtQty(r.shortQty)}</td>
+          <td class="num">${r.fillPct}%</td>
+        </tr>`).join("")
+      : '<tr><td colspan="10" class="no-rows">Koi PO short record nahi mila.</td></tr>';
+  }
+
+  // ==================== RENDER SALES QTY DIALOG ====================
+  function renderSalesDialog() {
+    const dlg = document.getElementById("ivpSalesDialog");
+    if (!dlg) return;
+    dlg.querySelectorAll("[data-ltab]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.ltab === salesState.tab)));
+    dlg.querySelectorAll("[data-lper]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lper === salesState.period)));
+    dlg.querySelectorAll("[data-lvel]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lvel === salesState.velocity)));
+    ["summary", "detail", "poLog"].forEach(t => { document.getElementById("ivpSalesPane-" + t).hidden = (t !== salesState.tab); });
+    document.getElementById("ivpSalesPerLbl").textContent = salesState.period.toUpperCase();
+
+    const poLogs = getPoLogRows();
+    const skuSum = buildSalesSkuSummary(salesState.period);
+    const q = salesState.q;
+
+    const totalLogDc = poLogs.reduce((a, r) => a + r.dcQty, 0);
+    const totalLogVal = round2(poLogs.reduce((a, r) => a + r.predicted, 0));
+    const totalSkuDc = skuSum.reduce((a, x) => a + x.dcQty, 0);
+    const fastCnt = skuSum.filter(x => x.velCode === "fast").length;
+
+    document.getElementById("ivpSalesKpis").innerHTML = `
+      <div class="adm-kpi"><small>Total Logged POs</small><b>${poLogs.length}</b></div>
+      <div class="adm-kpi"><small>Total Sales DC Qty (Log)</small><b style="color:var(--ok)">${fmtQty(totalLogDc)} pcs</b></div>
+      <div class="adm-kpi"><small>Total Sales Value (Log)</small><b>${fmtINR(totalLogVal)}</b></div>
+      <div class="adm-kpi"><small>Unique SKUs Shipped</small><b>${skuSum.length} (${fmtQty(totalSkuDc)} pcs)</b></div>
+      <div class="adm-kpi"><small>⚡ Top / Fast Moving SKUs</small><b style="color:var(--accent)">${fastCnt}</b></div>
+    `;
+
+    // Sales Trend Graph
+    const trendSrc = skuSalesRecords.length ? skuSalesRecords : poLogs;
+    const tMap = new Map();
+    trendSrc.forEach(r => {
+      const p = periodKey(parseAnyDate(r.date), salesState.period);
+      tMap.set(p, (tMap.get(p) || 0) + (+r.dcQty || 0));
     });
-    const maxDc = Math.max(1, ...agg.map(x => x.dcQty));
+    const tEnt = [...tMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
+    const maxT = Math.max(1, ...tEnt.map(x => x[1]));
+    document.getElementById("ivpSalesTrendGraph").innerHTML = tEnt.length
+      ? tEnt.map(([p, v]) => `<div title="${p}: ${fmtQty(v)} pcs shipped"><b>${fmtQty(v)}</b><u style="height:${Math.max(4, (v / maxT) * 84)}%"></u><small>${esc(p)}</small></div>`).join("")
+      : '<p class="lg-edited">Abhi koi sales qty data nahi hai.</p>';
 
-    const topEl = document.getElementById("ivpTopSkuGraph");
-    topEl.innerHTML = agg.slice(0, 5).length
-      ? agg.slice(0, 5).map(x => `<div class="hb">
-          <span title="${esc(x.sku + ' - ' + x.itemName)}">${esc(x.sku)}</span>
-          <i><u style="width:${Math.max(4, (x.dcQty / maxDc) * 100)}%"></u></i>
-          <b>${fmtQty(x.dcQty)} pcs</b>
-        </div>`).join("")
-      : '<p class="lg-edited">PO + DC run karne par SKU movement yahan dikhega.</p>';
+    // Top / Fast Moving SKUs Bar Chart
+    const maxDc = Math.max(1, ...skuSum.map(x => x.dcQty));
+    document.getElementById("ivpTopSalesSkuGraph").innerHTML = skuSum.slice(0, 6).length
+      ? skuSum.slice(0, 6).map(x => `<div class="hb"><span title="${esc(x.sku + ' - ' + x.itemName)}">${esc(x.sku)}</span><i><u style="width:${Math.max(4, (x.dcQty / maxDc) * 100)}%"></u></i><b>${fmtQty(x.dcQty)} pcs</b></div>`).join("")
+      : '<p class="lg-edited">Naya PO + DC run karein — Top/Fast Moving SKUs yahan dikhenge.</p>';
 
-    document.getElementById("ivpSkuTbody").innerHTML = agg.length
-      ? agg.map((x, idx) => {
-          const ratio = x.dcQty / maxDc;
-          const vel = idx < 3 || ratio >= 0.65
-            ? `<span class="pill ok">⚡ Fast / Top Moving</span>`
-            : ratio >= 0.25
-              ? `<span class="pill info">Steady Moving</span>`
-              : `<span class="pill warn">Slow Moving</span>`;
+    // Table 1: SKU-Wise Sales Summary
+    const visSum = skuSum.filter(x => {
+      if (salesState.velocity !== "all" && x.velCode !== salesState.velocity) return false;
+      if (q && !`${x.sku} ${x.itemName} ${x.poList} ${x.period}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    document.getElementById("ivpSalesSumTbody").innerHTML = visSum.length
+      ? visSum.map(x => {
+          const badge = x.velCode === "fast"
+            ? '<span class="pill ok">⚡ Fast / Top Moving</span>'
+            : x.velCode === "steady"
+              ? '<span class="pill info">Steady Moving</span>'
+              : '<span class="pill warn">Slow Moving</span>';
           return `<tr>
             <td>${esc(x.period)}</td>
             <td class="sku">${esc(x.sku)}</td>
             <td>${esc(x.itemName)}</td>
-            <td>${vel}</td>
+            <td>${badge}</td>
+            <td style="font-size:.78rem;max-width:210px;overflow-wrap:anywhere;"><b>${x.poCount} PO(s):</b> ${esc(x.poList)}</td>
             <td class="num">${fmtQty(x.poQty)}</td>
-            <td class="num strong">${fmtQty(x.dcQty)}</td>
+            <td class="num strong" style="color:var(--ok)">${fmtQty(x.dcQty)}</td>
+            <td class="num">${x.fillPct}%</td>
             <td class="num">${fmtINR(round2(x.shippedValue))}</td>
           </tr>`;
         }).join("")
-      : '<tr><td colspan="7" class="no-rows">Abhi koi SKU DC sales record nahi hai.</td></tr>';
+      : '<tr><td colspan="9" class="no-rows">SKU-wise sales movement ke liye PO + DC run karein (ya "PO-Wise Sales Log" tab dekhein).</td></tr>';
+
+    // Table 2: Detailed View with PO Number
+    const visDet = skuSalesRecords.filter(r => !q || `${r.poNumber} ${r.dcNumber} ${r.customer} ${r.sku} ${r.itemName} ${r.ean} ${r.date}`.toLowerCase().includes(q));
+    document.getElementById("ivpSalesDetTbody").innerHTML = visDet.length
+      ? visDet.map(r => `<tr>
+          <td>${esc(periodKey(parseAnyDate(r.date), salesState.period))}</td>
+          <td>${esc(r.date)}</td>
+          <td class="strong">${esc(r.poNumber)}</td>
+          <td>${esc(r.dcNumber)}</td>
+          <td>${esc(r.customer)}</td>
+          <td class="sku">${esc(r.sku)}</td>
+          <td>${esc(r.itemName)}</td>
+          <td class="num">${fmtQty(r.poQty)}</td>
+          <td class="num strong" style="color:var(--ok)">${fmtQty(r.dcQty)}</td>
+          <td class="num">${fmtINR(r.shippedValue)}</td>
+        </tr>`).join("")
+      : '<tr><td colspan="10" class="no-rows">Koi item-level sales record nahi mila.</td></tr>';
+
+    // Table 3: PO-Wise Sales Log (All Logged)
+    const visPo = poLogs.filter(r => !q || `${r.poNumber} ${r.dcNumber} ${r.customer} ${r.city} ${r.date}`.toLowerCase().includes(q));
+    document.getElementById("ivpSalesPoLogTbody").innerHTML = visPo.length
+      ? visPo.map(r => `<tr>
+          <td>${esc(periodKey(parseAnyDate(r.date), salesState.period))}</td>
+          <td>${esc(r.date)}</td>
+          <td class="strong">${esc(r.poNumber)}</td>
+          <td>${esc(r.dcNumber)}</td>
+          <td>${esc(r.customer)}</td>
+          <td>${esc(r.city)}</td>
+          <td class="num">${fmtQty(r.poQty)}</td>
+          <td class="num strong" style="color:var(--ok)">${fmtQty(r.dcQty)}</td>
+          <td class="num">${r.fillPct}%</td>
+          <td class="num">${fmtINR(r.predicted)}</td>
+        </tr>`).join("")
+      : '<tr><td colspan="10" class="no-rows">Koi PO sales record nahi mila.</td></tr>';
   }
 
-  renderAnalyticsSuite();
+  ensureButtonsAndDialogs();
+  if (typeof renderLog === "function") {
+    const _rl = renderLog;
+    renderLog = function () { _rl(); updateTopBadges(); };
+  }
 })();
 </script>
 </body>
